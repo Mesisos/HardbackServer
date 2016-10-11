@@ -1,18 +1,14 @@
 {
-  "name": "parse-server-example",
+  "name": "pbserver",
   "version": "1.4.0",
-  "description": "An example Parse API server using the parse-server module",
+  "description": "Paperback Parse Server",
   "main": "index.js",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ParsePlatform/parse-server-example"
-  },
   "license": "MIT",
   "dependencies": {
     "express": "~4.11.x",
     "kerberos": "~0.0.x",
     "parse": "~1.8.0",
-    "parse-server": "*"
+    "parse-server": "^2.2.22"
   },
   "scripts": {
     "start": "node index.js"

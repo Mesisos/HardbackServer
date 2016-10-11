@@ -1,6 +1,137 @@
-# parse-server-example
+# pbserver
 
-Example project using the [parse-server](https://github.com/ParsePlatform/parse-server) module on Express.
+Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse-server) module on Express.
+
+# TODO
+
+## Tasks
+* [ ] Move code to cloud functions
+* [ ] Write script to create db schema
+
+## Questions
+* [x] Are username and display name separate ala Steam? _Yes_
+* [x] What are friends?
+    * People you played with recently? _Yes_
+    * Can you add them manually? _Only by playing with them via link_
+    * Can you do anything with friends? _Start a game, delete them_
+
+## Account
+* [ ] Create account
+* [ ] Display name?
+* [ ] Setup email verification
+* [ ] Login
+* [ ] Setup password recovery
+* [ ] Track user devices?
+* [ ] Obscene name filter?
+
+## Missing APIs
+* [ ] Start a game with friends? They get a push notification with the link?
+* [ ] Game status check
+
+## Ranking?
+
+## Security
+* [ ] Input validation
+* [ ] Access security
+
+# Database Schema
+
+## State
+- `state`
+- `name`
+
+## Game
+- `state`
+- `time_updated`
+- `turn`
+
+## Config
+- `Pointer[Game]`
+- `slotNum`
+- `isRandom`
+- `fameCardNum`
+- `aiNum`
+- `turnMaxSec`
+
+## Player
+- `Pointer[Game]`
+- `Pointer[User]`
+
+## Turn
+- `Pointer[Game]`
+- `time`
+
+# Gist
+```
+example save game https://gist.github.com/MarkFassett/4d256c6e526d92eaba3dccab6d0d384b
+
+account flow
+	1. create account
+	2. click auth link sent to e-mail
+	3. log in with user/pass
+
+pw recovery flow
+	4. request password recovery e-mail via ui
+	5. link to click to reset pw and related form
+
+new device login
+	send notification e-mail
+	keep track of user's devices
+
+Challenge flow
+	1. create game, set max slots
+	2. send challenge link(s) or request random players
+		if random flag set, then people can join by request random
+	3. start play when ready (min 2 players)
+
+Other items
+	Need push notifications to drive play
+	Should keep log of all games
+
+Ranking system
+	maybe just go by avg score due to absence of griefing/competitive scores?
+	or by deviation from group norm to normalize for the cards?
+	Or something even more or less clever...
+
+/checkNameFree?displayName=
+
+/createAccount?user=&login=&displayname=
+	- check no obscene name
+	- check unique display name
+
+/authenticate?user=&login=&deviceId=
+/recoverPassword?email=
+
+/createGame?settings=
+	get back shortlink to send to let people play with you
+	properties
+		max players
+		# of fame cards (1-16)
+		AI player count
+		??? max turn time ??? - if expired next guy is notified and runs AI for the idle player
+
+/requestGame
+	used to join random game	
+	create a lobby if none present
+	lobbies will time out and start play to keep things going
+	potentially secret AI?
+
+/gameTurn?gameId&state
+	Upload save game for next player and notify them it's ready
+	16kb currently
+	4 player will be couple kb more
+
+/listGames
+	get back state of all games you are involved in
+
+/listFriends
+	get list of all known buddies
+
+/deleteFriend
+	remove friend from list
+```
+
+# Parse Server
 
 Read the full Parse Server guide here: https://github.com/ParsePlatform/parse-server/wiki/Parse-Server-Guide
 
@@ -9,7 +140,7 @@ Read the full Parse Server guide here: https://github.com/ParsePlatform/parse-se
 * Make sure you have at least Node 4.3. `node --version`
 * Clone this repo and change directory to it.
 * `npm install`
-* Install mongo locally using http://docs.mongodb.org/master/tutorial/install-mongodb-on-os-x/
+* Install mongo locally using https://docs.mongodb.com/master/administration/install-community/
 * Run `mongo` to connect to your database, just to make sure it's working. Once you see a mongo prompt, exit with Control-D
 * Run the server with: `npm start`
 * By default it will use a path of /parse for the API routes.  To change this, or use older client SDKs, run `export PARSE_MOUNT=/1` before launching the server.

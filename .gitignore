@@ -28,3 +28,8 @@ node_modules
 
 # Emacs
 *~
+
+# Local DB and IDE support files
+mongo/
+mongo-export/
+typings/
