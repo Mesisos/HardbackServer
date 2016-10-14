@@ -1,0 +1,62 @@
+{
+	"_id": "_User",
+	"objectId": "string",
+	"updatedAt": "date",
+	"createdAt": "date",
+	"username": "string",
+	"email": "string",
+	"emailVerified": "boolean",
+	"authData": "object",
+	"displayName": "string"
+}
+{
+	"_id": "Game",
+	"objectId": "string",
+	"updatedAt": "date",
+	"createdAt": "date",
+	"state": "number",
+	"turn": "number",
+	"config": "*Config",
+	"creator": "*_User",
+	"currentPlayer": "*Player"
+}
+{
+	"_id": "Config",
+	"objectId": "string",
+	"updatedAt": "date",
+	"createdAt": "date",
+	"slotNum": "number",
+	"isRandom": "boolean",
+	"fameCardNum": "number",
+	"aiNum": "number",
+	"turnMaxSec": "number"
+}
+{
+	"_id": "Player",
+	"objectId": "string",
+	"updatedAt": "date",
+	"createdAt": "date",
+	"game": "*Game",
+	"user": "*_User"
+}
+{
+	"_id": "_Session",
+	"objectId": "string",
+	"updatedAt": "date",
+	"createdAt": "date",
+	"restricted": "boolean",
+	"user": "*_User",
+	"installationId": "string",
+	"sessionToken": "string",
+	"expiresAt": "date",
+	"createdWith": "object"
+}
+{
+	"_id": "Turn",
+	"objectId": "string",
+	"updatedAt": "date",
+	"createdAt": "date",
+	"game": "*Game",
+	"turn": "number",
+	"save": "string"
+}
