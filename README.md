@@ -5,8 +5,10 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 # TODO
 
 ## Tasks
-* [ ] Move code to cloud functions
+* [x] Move code to cloud functions
 * [ ] Write script to create db schema
+* [ ] Add beforeSave to avoid duplicate display names
+* [ ] Replace defaultError with semantic errors
 
 ## Questions
 * [x] Are username and display name separate ala Steam? _Yes_
@@ -17,7 +19,7 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 
 ## Account
 * [ ] Create account
-* [ ] Display name?
+* [x] Display name
 * [ ] Setup email verification
 * [ ] Login
 * [ ] Setup password recovery
@@ -27,6 +29,7 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 ## Missing APIs
 * [ ] Start a game with friends? They get a push notification with the link?
 * [ ] Game status check
+* [ ] Join game
 
 ## Ranking?
 
@@ -42,8 +45,10 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 
 ## Game
 - `state`
-- `time_updated`
+- `transitionedAt`
 - `turn`
+- `config`
+- `creator`
 
 ## Config
 - `Pointer[Game]`

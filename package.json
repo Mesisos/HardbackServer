@@ -8,12 +8,18 @@
     "express": "~4.11.x",
     "kerberos": "~0.0.x",
     "parse": "~1.8.0",
-    "parse-server": "^2.2.22"
+    "parse-server": "^2.2.22",
   },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "mocha"
   },
   "engines": {
     "node": ">=4.3"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "mocha": "^3.1.2",
+    "rest": "^2.0.0"
   }
 }
