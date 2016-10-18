@@ -1,4 +1,6 @@
 
+var util = require("util");
+
 var Game = Parse.Object.extend("Game");
 var Config = Parse.Object.extend("Config");
 var Turn = Parse.Object.extend("Turn");
@@ -6,12 +8,6 @@ var Player = Parse.Object.extend("Player");
 var GameState = {
   PENDING: 0
 };
-function getGameStateName(state) {
-  switch (state) {
-    case GameState.PENDING: return "pending";
-  }
-  return "invalid";
-}
 
 Parse.Cloud.define('hello', function(req, res) {
   console.log("hi");
@@ -47,7 +43,7 @@ function userInvalid(user, res) {
 Parse.Cloud.define("checkNameFree", function(req, res) {
   
   var name = req.params.displayName;
-  if (!name || name == "") {
+  if (!name || name === "") {
     res.error("Unable to check, invalid display name");
     return;
   }
@@ -62,7 +58,7 @@ Parse.Cloud.define("checkNameFree", function(req, res) {
     },
     defaultError(res)
   );
-})
+});
 
 
 
@@ -96,13 +92,12 @@ Parse.Cloud.define("createGame", function(req, res) {
   createConfigFromRequest(req).then(
     function(config) {
       return createGameFromConfig(req.user, config);
-    },
-    defaultError(res)
+    }
   ).then(
     function(game) {
       res.success({
         id: game.id
-      })
+      });
     },
     defaultError(res)
   );
@@ -139,7 +134,7 @@ function createGameFromConfig(user, config) {
         function(destroyError) {
           promise.reject(destroyError);
         }
-      )
+      );
     }
   );
   return promise;
@@ -177,7 +172,7 @@ Parse.Cloud.beforeDelete(Game, function(req, res) {
     function(error) {
       res.error(error);
     }
-  )
+  );
 
 /*
   var turns = new Parse.Query(Turn);
@@ -213,8 +208,7 @@ Parse.Cloud.define("joinGame", function(req, res) {
     function(g) {
       game = g;
       return getPlayer(game, user);
-    },
-    defaultError(res)
+    }
   ).then(
     function(p) {
       player = p;
@@ -223,8 +217,7 @@ Parse.Cloud.define("joinGame", function(req, res) {
         return game.save();
       }
       return Parse.Promise.as(game);
-    },
-    defaultError(res)
+    }
   ).then(
     function(game) {
       res.success({
@@ -232,7 +225,7 @@ Parse.Cloud.define("joinGame", function(req, res) {
       });
     },
     defaultError(res)
-  )
+  );
 });
 
 function getPlayer(game, user) {
@@ -244,7 +237,7 @@ function getPlayer(game, user) {
   player.set("game", game);
   player.set("user", user);
   player.save().then(
-    function(player) { promise.resolve(player) },
+    function(player) { promise.resolve(player); },
     function(error) {
       promise.reject(error);
     }
@@ -274,39 +267,46 @@ Parse.Cloud.beforeSave(Player, function(req, res) {
 });
 
 
+Parse.Cloud.define("listGames", function(req, res) {
+  var user = req.user;
+  if (userInvalid(user, res)) return;
 
-Parse.Cloud.define("gameStatus", function(req, res) {
-  var gameId = String(req.params.gameId);
-  var query = new Parse.Query(Game);
-  var game;
-  query.get(gameId).then(
-    function(g) {
-      game = g;
-      // console.log("got game!");
-      var players = new Parse.Query(Player);
-      players.equalTo("game", game);
-      players.addAscending("createdAt");
-      return players.find();
-    },
-    defaultError(res)
-  ).then(
-    function(players) {
-      // console.log("got players!", game, players);
-      var g = {
-        state: getGameStateName(game.get("state")),
-        turn: game.get("turn"),
-        createdAt: game.createdAt,
-        updatedAt: game.updatedAt,
-        creator: game.get("creator"),
-        config: game.get("config"),
-        players: players
-      };
+  var gameIds = req.params.gameIds;
+  if (!Array.isArray(gameIds)) gameIds = null;
+  
+  function findPlayers(user, games) {
+    var playerQuery = new Parse.Query(Player);
+    playerQuery.equalTo("user", user);
+    playerQuery.include("game");
+    if (games) playerQuery.containedIn("game", games);
+    playerQuery.limit(1000);
+    playerQuery.find().then(
+      function(players) {
+        var games = players.map(function(player) {
+          return player.get("game");
+        });
+        res.success(games);
+      },
+      defaultError(res)
+    );
+  }
 
-      // console.log("got", g);
-      res.success(g);
-    },
-    defaultError(res)
-  );
+  if (gameIds) {
+    var games = !gameIds ? null : gameIds.map(function(gameId) {
+      var game = new Game();
+      game.id = gameId;
+      return game;
+    });
+    Parse.Object.fetchAll(games).then(
+      function(games) {
+        findPlayers(user, games);
+      },
+      defaultError(res)
+    );
+  } else {
+    findPlayers(user);
+  }
+
 });
 
 
@@ -338,7 +338,8 @@ Parse.Cloud.define("gameTurn", function(req, res) {
           res.success({
             saved: true
           });
-        }
+        },
+        defaultError(res)
       );
 
     },
@@ -350,42 +351,88 @@ Parse.Cloud.beforeSave(Turn, function(req, res) {
   var turn = req.object;
   var game = turn.get("game");
 
+  var currentPlayer;
+
   var query = new Parse.Query(Game);
   query.include("currentPlayer");
   query.get(game.id).then(
     function(g) {
       game = g;
-
       turn.set("turn", game.get("turn"));
       game.increment("turn");
-
-      var currentPlayer = game.get("currentPlayer");
-      if (!currentPlayer) {
-        res.error("Unable to save turn, no current player");
-        return;
-      }
-
-      console.log(currentPlayer.createdAt);
-
-      res.error("derp");
-      return;
-
-      // TODO change current player
-      // TODO get next player by date
-      // TODO wrap if no newer player found by getting the oldest player
-      // TODO check player state (active, not disconnected, etc.)
-      // TODO make sure that empty results due to player state or otherwise
-      //      don't put the next player search into a frenzy or loop, add tests?
+      return findNextPlayer(game);
+    }
+  ).then(
+    function(nextPlayer) {
+      // console.log("Found next player", nextPlayer);
+      game.set("currentPlayer", nextPlayer);
       return game.save();
-    },
-    defaultError(res)
+    }
   ).then(
     function(game) {
+      // console.log("Game saved", game);
       res.success();
     },
     defaultError(res)
   );
 });
+
+// DONE get next player by date
+// DONE wrap if no newer player found by getting the oldest player
+// TODO check player state (active, not disconnected, etc.)
+// DONE make sure that empty results due to player state or otherwise
+//      don't put the next player search into a frenzy or loop, add tests?
+function findNextPlayer(game) {
+  var promise = new Parse.Promise();
+
+  var currentPlayer = game.get("currentPlayer");
+  if (!currentPlayer) {
+    promise.reject("Unable to find next player, no current player");
+    return;
+  }
+
+  // console.log("Current player created at:\n ", currentPlayer.createdAt);
+
+  function getNextPlayerQuery() {
+    var query = new Parse.Query(Player);
+    query.notEqualTo("objectId", currentPlayer.id);
+    query.equalTo("game", game);
+    query.addAscending("createdAt");
+    return query;
+  }
+
+  var query;
+  
+  query = getNextPlayerQuery();
+  query.greaterThanOrEqualTo("createdAt", currentPlayer.createdAt);
+
+  query.first().then(
+    function(nextPlayer) {
+      if (nextPlayer) {
+        // console.log("Next newer player created at:\n ", nextPlayer.createdAt);
+        promise.resolve(nextPlayer);
+      } else {
+        query = getNextPlayerQuery();
+        query.limit(1);
+        return query.first();
+      }
+    }
+  ).then(
+    function(nextPlayer) {
+      if (nextPlayer) {
+        // console.log("Back to oldest player created at:\n ", nextPlayer.createdAt);
+        promise.resolve(nextPlayer);
+      } else {
+        promise.reject("Unable to find next player");
+      }
+    },
+    promise.reject
+  );
+
+  return promise;
+}
+
+
 
 
 

@@ -5,31 +5,33 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 # TODO
 
 ## Tasks
-* [x] Move code to cloud functions
-* [ ] Write script to create db schema
-* [ ] Add beforeSave to avoid duplicate display names
+* [X] ~~*Move code to cloud functions*~~
+* [X] ~~*Write script to create db schema*~~
+* [X] ~~*Add beforeSave to avoid duplicate display names*~~
 * [ ] Replace defaultError with semantic errors
+* [ ] Handle game state (pending, running, stopped)
 
 ## Questions
-* [x] Are username and display name separate ala Steam? _Yes_
-* [x] What are friends?
+* [X] Are username and display name separate ala Steam? _Yes_
+* [X] What are friends?
     * People you played with recently? _Yes_
     * Can you add them manually? _Only by playing with them via link_
     * Can you do anything with friends? _Start a game, delete them_
 
 ## Account
 * [ ] Create account
-* [x] Display name
+* [X] ~~*Display name*~~
 * [ ] Setup email verification
 * [ ] Login
 * [ ] Setup password recovery
 * [ ] Track user devices?
-* [ ] Obscene name filter?
+* [ ] Obscene name filter? **beforeSave?**
 
 ## Missing APIs
 * [ ] Start a game with friends? They get a push notification with the link?
-* [ ] Game status check
-* [ ] Join game
+* [X] Game status check, **might still need better results**
+* [X] Join game
+* [ ] Start game (by creator?)
 
 ## Ranking?
 
@@ -39,32 +41,7 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 
 # Database Schema
 
-## State
-- `state`
-- `name`
-
-## Game
-- `state`
-- `transitionedAt`
-- `turn`
-- `config`
-- `creator`
-
-## Config
-- `Pointer[Game]`
-- `slotNum`
-- `isRandom`
-- `fameCardNum`
-- `aiNum`
-- `turnMaxSec`
-
-## Player
-- `Pointer[Game]`
-- `Pointer[User]`
-
-## Turn
-- `Pointer[Game]`
-- `time`
+See `schema/schema.json`.
 
 # Gist
 ```
