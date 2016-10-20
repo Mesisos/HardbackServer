@@ -5,8 +5,20 @@ var Game = Parse.Object.extend("Game");
 var Config = Parse.Object.extend("Config");
 var Turn = Parse.Object.extend("Turn");
 var Player = Parse.Object.extend("Player");
+var Contact = Parse.Object.extend("Contact");
+
 var GameState = {
-  PENDING: 0
+  Init: 0,
+  Lobby: 1,
+  Running: 2,
+  Ended: 3,
+
+  getName: function(state) {
+    for (var prop in GameState) {
+      if (GameState[prop] == state) return prop;
+    }
+    return null;
+  }
 };
 
 Parse.Cloud.define('hello', function(req, res) {
@@ -33,10 +45,26 @@ function defaultError(res) {
   });
 }
 
-function userInvalid(user, res) {
+function errorOnInvalidUser(user, res) {
   var invalid = !user;
-  if (invalid) res.error("User not found");
+  if (invalid) res.error("User not found.");
   return invalid;
+}
+
+function errorOnInvalidGame(game, res, acceptable) {
+  var state = game.get("state");
+  if (acceptable.indexOf(state) == -1) {
+
+    var acceptableNames = acceptable.map(function(st) {
+      return GameState.getName(st);
+    }).join(", ");
+
+    var stateName = GameState.getName(state);
+    res.error("Game state '" + stateName + "' does not accept this operation. Supported states: " + acceptableNames);
+
+    return true;
+  }
+  return false;
 }
 
 
@@ -44,7 +72,7 @@ Parse.Cloud.define("checkNameFree", function(req, res) {
   
   var name = req.params.displayName;
   if (!name || name === "") {
-    res.error("Unable to check, invalid display name");
+    res.error("Unable to check, invalid display name.");
     return;
   }
 
@@ -87,7 +115,7 @@ Parse.Cloud.define("checkNameFree", function(req, res) {
 
 
 Parse.Cloud.define("createGame", function(req, res) {
-  if (userInvalid(req.user, res)) return;
+  if (errorOnInvalidUser(req.user, res)) return;
 
   createConfigFromRequest(req).then(
     function(config) {
@@ -117,17 +145,38 @@ function createConfigFromRequest(req) {
 
 function createGameFromConfig(user, config) {
   var promise = new Parse.Promise();
+  var savedGame = false;
   var game = new Game();
   game.set("config", config);
-  game.set("state", GameState.PENDING);
+  game.set("state", GameState.Init);
   game.set("turn", 0);
   game.set("creator", user);
   game.save().then(
-    function(game) {
+    function(g) {
+      game = g;
+      savedGame = true;
+      // Join creator into its own game
+      return getPlayer(game, user);
+    }
+  ).then(
+    function(player) {
+      // Set creator player as the current player
+      game.set("currentPlayer", player);
+
+      // Set game state to Lobby
+      game.set("state", GameState.Lobby);
+      return game.save();
+    }
+  ).then(
+    function(g) {
+      game = g;
       promise.resolve(game);
     },
     function(error) {
-      config.destroy().then(
+      // Try cleaning up before failing
+      var toDestroy = [config];
+      if (savedGame) toDestroy.push(game);
+      Parse.Object.destroyAll(toDestroy).then(
         function(config) {
           promise.reject(error);
         },
@@ -196,31 +245,67 @@ Parse.Cloud.beforeDelete(Game, function(req, res) {
 */
 });
 
+function getPlayerCount(game) {
+  var query = new Parse.Query(Player);
+  return query
+    .equalTo("game", game)
+    .count();
+}
+
 Parse.Cloud.define("joinGame", function(req, res) {
   var user = req.user;
-  if (userInvalid(user, res)) return;
-
+  if (errorOnInvalidUser(user, res)) return;
+  
   var gameId = String(req.params.gameId);
   var game;
   var player;
+  var playerCount;
   var query = new Parse.Query(Game);
-  query.get(gameId).then(
+  query
+    .include("config")
+    .get(gameId)
+    .then(
     function(g) {
       game = g;
+      if (errorOnInvalidGame(game, res, [GameState.Lobby])) return;
       return getPlayer(game, user);
     }
   ).then(
     function(p) {
       player = p;
-      if (!game.get("currentPlayer")) {
-        game.set("currentPlayer", player);
-        return game.save();
-      }
-      return Parse.Promise.as(game);
+      return addContacts(game, player);
     }
   ).then(
-    function(game) {
+    function() {
+      return getPlayerCount(game);
+    }
+  ).then(
+    function(c) {
+      playerCount = c;
+      var maxPlayers = game.get("config").get("slotNum");
+      if (playerCount > maxPlayers) {
+        player
+          .destroy()
+          .then(
+            function() {
+              res.error("Unable to join, too full.");
+            },
+            function() {
+              res.error("Game too full, but unable to remove player.");
+            }
+          );
+      } else if (playerCount == maxPlayers) {
+        return game.set("state", GameState.Running).save();
+      } else {
+        return new Parse.Promise.resolve(game);
+      }
+    }
+  ).then(
+    function(g) {
+      game = g;
       res.success({
+        game: game,
+        playerCount: playerCount,
         playerId: player.id
       });
     },
@@ -229,23 +314,11 @@ Parse.Cloud.define("joinGame", function(req, res) {
 });
 
 function getPlayer(game, user) {
-  var promise = new Parse.Promise();
-  
-
-
   var player = new Player();
   player.set("game", game);
   player.set("user", user);
-  player.save().then(
-    function(player) { promise.resolve(player); },
-    function(error) {
-      promise.reject(error);
-    }
-  );
-
-  return promise;
+  return player.save();
 }
-
 Parse.Cloud.beforeSave(Player, function(req, res) {
   var player = req.object;
   
@@ -255,7 +328,7 @@ Parse.Cloud.beforeSave(Player, function(req, res) {
   query.first().then(
     function(existing) {
       if (existing) {
-        res.error("Player already in game");
+        res.error("Player already in game.");
       } else {
         res.success();
       }
@@ -267,9 +340,80 @@ Parse.Cloud.beforeSave(Player, function(req, res) {
 });
 
 
+
+function addContacts(game, player) {
+  var user = player.get("user");
+
+  var playerQuery = new Parse.Query(Player);
+  return playerQuery
+    .equalTo("game", game)
+    .find()
+    .then(
+      function(players) {
+        var gameUsers = players.map(function(player) {
+          return player.get("user");
+        });
+
+        var contactPromises = [];
+        gameUsers.forEach(function(gameUser) {
+          var contact;
+          
+          if (user.id == gameUser.id) return;
+
+          // Add user in game as contact of player
+          contact = new Contact();
+          contact.set("user", user);
+          contact.set("contact", gameUser);
+          contactPromises.push(contact.save());
+
+          // Add player as contact of user in game
+          contact = new Contact();
+          contact.set("user", gameUser);
+          contact.set("contact", user);
+          contactPromises.push(contact.save());
+        }, this);
+
+        return Parse.Promise.when(contactPromises);
+      }
+    ).then(
+      function(contacts) {
+        return Parse.Promise.resolve();
+      },
+      function(errors) {
+        var actualErrors = errors.filter(function(error) {
+          return error.message != "[exists]";
+        });
+        if (actualErrors.length > 0) return Parse.Promise.reject(actualErrors);
+        return Parse.Promise.resolve();
+      }
+    );
+}
+
+Parse.Cloud.beforeSave(Contact, function(req, res) {
+  var contact = req.object;
+
+  var query = new Parse.Query(Contact);
+  query
+    .equalTo("user", contact.get("user"))
+    .equalTo("contact", contact.get("contact"))
+    .first()
+    .then(
+      function(existing) {
+        if (existing) {
+          res.error("[exists]");
+        } else {
+          res.success();
+        }
+      },
+      function(error) {
+        res.error(error);
+      }
+    );
+});
+
 Parse.Cloud.define("listGames", function(req, res) {
   var user = req.user;
-  if (userInvalid(user, res)) return;
+  if (errorOnInvalidUser(user, res)) return;
 
   var gameIds = req.params.gameIds;
   if (!Array.isArray(gameIds)) gameIds = null;
@@ -311,14 +455,114 @@ Parse.Cloud.define("listGames", function(req, res) {
 
 
 
+Parse.Cloud.define("deleteFriend", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+
+  var contactId = req.params.userId;
+  var contact = new Parse.User();
+  contact.id = contactId;
+
+  var contactQuery = new Parse.Query(Contact);
+  contactQuery
+    .equalTo("user", user)
+    .equalTo("contact", contact)
+    .first()
+    .then(
+      function(contact) {
+        if (!contact) return Parse.Promise.reject("Contact not found");
+        return contact.destroy();
+      }
+    ).then(
+      function() {
+        res.success({
+          deleted: true
+        });
+      },
+      defaultError(res)
+    );
+});
+
+Parse.Cloud.define("listFriends", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+
+  var contactQuery = new Parse.Query(Contact);
+  contactQuery
+    .equalTo("user", user)
+    .include("contact")
+    .limit(1000)
+    .find()
+    .then(
+      function(contacts) {
+        var users = contacts.map(function(contact) {
+          // TODO: filter?
+          return contact.get("contact");
+        });
+        res.success({
+          contacts: users
+        });
+      },
+      defaultError(res)
+    );
+
+  /* 
+  // On demand list of friends, no good
+  var playerQuery = new Parse.Query(Player);
+  playerQuery
+    .equalTo("user", user)
+    .limit(1000)
+    .find()
+    .then(
+      function(players) {
+        var games = players.map(function(player) {
+          return player.get("game");
+        });
+
+        console.log("games: " + games.length);
+
+        var connectedQuery = new Parse.Query(Player);
+        return connectedQuery
+          .containedIn("game", games)
+          .limit(1000)
+          .find()
+      }
+    ).then(
+      function(players) {
+        
+        var usersById = {};
+        players.forEach(function(player) {
+          var connectedUser = player.get("user");
+          if (!usersById[connectedUser.id]) {
+            usersById[connectedUser.id] = connectedUser;
+          }
+        }, this);
+
+        var users = [];
+        for (userId in usersById) {
+          if (userId == user.id) continue;
+          users.push(usersById[userId]);
+        }
+
+        res.success(users);
+      },
+      defaultError(res)
+    );
+    */
+});
+
+
+
 Parse.Cloud.define("gameTurn", function(req, res) {
-  if (userInvalid(req.user, res)) return;
+  if (errorOnInvalidUser(req.user, res)) return;
 
   var gameId = String(req.params.gameId);
   var query = new Parse.Query(Game);
   query.include("currentPlayer");
   query.get(gameId).then(
     function(game) {
+
+      if (errorOnInvalidGame(game, res, [GameState.Running])) return;
 
       var currentPlayer = game.get("currentPlayer");
       if (!currentPlayer || currentPlayer.get("user").id != req.user.id) {

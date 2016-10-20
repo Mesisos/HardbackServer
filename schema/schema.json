@@ -60,3 +60,11 @@
 	"turn": "number",
 	"save": "string"
 }
+{
+	"_id": "Contact",
+	"objectId": "string",
+	"updatedAt": "date",
+	"createdAt": "date",
+	"user": "*_User",
+	"contact": "*_User"
+}

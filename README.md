@@ -8,15 +8,39 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [X] ~~*Move code to cloud functions*~~
 * [X] ~~*Write script to create db schema*~~
 * [X] ~~*Add beforeSave to avoid duplicate display names*~~
+* [X] ~~*Add contacts on join game*~~
+* [ ] Handle game state
+	* [X] ~~*Init*~~
+	* [X] ~~*Lobby*~~
+	* [X] ~~*Running*~~
+	* [ ] Ended
+* [ ] Go over questions and add missing tasks
+* [ ] Start game by timeout
+* [ ] Join by link
 * [ ] Replace defaultError with semantic errors
-* [ ] Handle game state (pending, running, stopped)
+* [ ] Query limits?
+* [ ] Filter returned User objects (listFriends etc.)
 
 ## Questions
 * [X] Are username and display name separate ala Steam? _Yes_
 * [X] What are friends?
-    * People you played with recently? _Yes_
-    * Can you add them manually? _Only by playing with them via link_
-    * Can you do anything with friends? _Start a game, delete them_
+	* People you played with recently? _Yes_
+	* Can you add them manually? _Only by playing with them via link_
+	* Can you do anything with friends? _Start a game, delete them_
+* [X] Does removing a friend block them and/or can you block people?
+	* _It doesn't block, but we might want blocking at some point._
+* [X] How does starting a game look? API call by creator only?
+	* _I think once a game is full, it probably ought to autostart, since they aren't "live" (ie - once everyone has responded to the game request)._
+	* _The creator ought to be allowed to start the game after the timer has expired, as long as there are two people in it_
+* [X] When does a game stop?
+	* _a game stops when a player wins :slightly_smiling_face: Probably need a call to notify of the game over condition, and then the file would be sent to all players (other than the person who ended the game).... maybe it's just a flag on the next turn call_
+* [X] Can a player leave a game before it ends?
+	* _Player leaving a game: I think a player could leave a game, at which point, they'd be replaced with an AI player.... Also, after a turn timeout (I've seen other games with turn timeouts of like 48 hours), the turn could be sent to the next player and just skip that persons turn, or we could send it with some info that says, "use an AI to play his turn"  skipping is probably easier_
+	* What happens when the creator leaves the game?
+		_I don't think it should matter - at the point the game starts, it's just round robin until it's done... creator is just another player_
+* [X] Which states can a game be in? E.g. [Pending, Running, Ended], anything else?
+	* _[Init, Lobby, Running, Ended]_
+* [ ] Does max slots include AI number or not?
 
 ## Account
 * [ ] Create account
@@ -26,12 +50,6 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] Setup password recovery
 * [ ] Track user devices?
 * [ ] Obscene name filter? **beforeSave?**
-
-## Missing APIs
-* [ ] Start a game with friends? They get a push notification with the link?
-* [X] Game status check, **might still need better results**
-* [X] Join game
-* [ ] Start game (by creator?)
 
 ## Ranking?
 

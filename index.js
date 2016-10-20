@@ -78,6 +78,35 @@ app.get('/createAccount', function(req, res) {
 });
 
 
+app.get('/purgeContacts', function(req, res) {
+
+  var userQuery = new Parse.Query(Parse.Object.extend("User"));
+  userQuery
+    .containedIn("username", ["Alice", "Bob", "Carol", "Dan"])
+    .find()
+    .then(
+      function(users) {
+        var contactQuery = new Parse.Query(Parse.Object.extend("Contact"));
+        return contactQuery
+          .containedIn("user", users)
+          .find()
+      }
+    ).then(
+      function(contacts) {
+        return Parse.Object.destroyAll(contacts);
+      }
+    ).then(
+      function() {
+        res.status(200).send("Done!");
+      },
+      function(error) {
+        res.status(500).send(error);
+      }
+    )
+
+});
+
+
 
 
 // })

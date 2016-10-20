@@ -33,3 +33,4 @@ node_modules
 mongo/
 mongo-export/
 typings/
+test/sessions.json
