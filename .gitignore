@@ -34,3 +34,7 @@ mongo/
 mongo-export/
 typings/
 test/sessions.json
+
+# Heroku local environment config
+.env
+parse-dashboard-config.json

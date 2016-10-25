@@ -19,11 +19,14 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 	* [X] ~~*Find a game*~~
 	* [X] ~~*Join game*~~
 	* [X] ~~*Create game if no random exists*~~
+	* [ ] Actually don't create a game and just return failure
 	* [ ] Add the capability of joining into multiple lobbies (it shouldn't try joining in a game it's already in)
 * [X] ~~*Look into Loom integration*~~
 * [ ] Add end game condition flag on game turn call
 	* [X] ~~*End the game*~~
 	* [ ] Send the save to all players (via push notifications?)
+* [ ] Explicit 
+* [ ] Fix maxSlots so it includes AI
 * [ ] Index functions to cloud code with master key
 * [ ] Allow start game by creator after timeout as long as two people are in it
 * [ ] Join via link
@@ -55,11 +58,12 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 		_I don't think it should matter - at the point the game starts, it's just round robin until it's done... creator is just another player_
 * [X] Which states can a game be in? E.g. [Pending, Running, Ended], anything else?
 	* _[Init, Lobby, Running, Ended]_
-* [ ] Does max slots include AI number or not?
-* [ ] Does the game end if < 2 people remain?
+* [X] Does max slots include AI number or not? _It does!_
+* [ ] Does the game end if < 2 people remain after players leave?
+	_If there is only one human left, the game should still send it to the last player - and then the client can ask if they want to continue the game, and if they do, can just continue it as a solo game until it's finished, and then send the result to the server..._
 * [ ] Request game
 	* Does request game search with specific config?
-	* Which config should it use 
+	* Which config should it use for the lobby if no game exists?
 
 ## Account
 * [ ] Create account

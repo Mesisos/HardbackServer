@@ -70,7 +70,7 @@ function errorOnInvalidGame(game, res, acceptable) {
 
 Parse.Cloud.define("checkNameFree", function(req, res) {
   
-  var name = req.params.displayName;
+  var name = String(req.params.displayName);
   if (!name || name === "") {
     res.error("Unable to check, invalid display name.");
     return;
@@ -527,7 +527,7 @@ Parse.Cloud.define("deleteFriend", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
 
-  var contactId = req.params.userId;
+  var contactId = String(req.params.userId);
   var contact = new Parse.User();
   contact.id = contactId;
 

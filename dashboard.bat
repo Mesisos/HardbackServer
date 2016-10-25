@@ -1,1 +1,1 @@
-parse-dashboard --appId pbserver --masterKey 12345 --serverURL "http://localhost:1337/parse" --appName pbserver
+parse-dashboard --config parse-dashboard-config.json
