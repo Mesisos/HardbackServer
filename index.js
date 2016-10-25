@@ -19,7 +19,7 @@ if (!databaseUri) {
 var serverConfig = {
   databaseURI: databaseUri || 'mongodb://127.0.0.1:27017/dev',
   cloud: process.env.CLOUD_CODE_MAIN || __dirname + '/cloud/main.js',
-  appId: process.env.APP_ID || 'myAppId',
+  appId: process.env.APP_ID || 'pbserver',
   masterKey: process.env.MASTER_KEY || '12345', //Add your master key here. Keep it secret!
   serverURL: process.env.SERVER_URL || 'http://127.0.0.1:1337/parse',  // Don't forget to change to https if needed
   liveQuery: {
@@ -89,7 +89,7 @@ app.get('/purgeContacts', function(req, res) {
         var contactQuery = new Parse.Query(Parse.Object.extend("Contact"));
         return contactQuery
           .containedIn("user", users)
-          .find()
+          .find();
       }
     ).then(
       function(contacts) {
@@ -102,7 +102,37 @@ app.get('/purgeContacts', function(req, res) {
       function(error) {
         res.status(500).send(error);
       }
-    )
+    );
+
+});
+
+app.get('/purgeRandomGames', function(req, res) {
+
+  var configQuery = new Parse.Query(Parse.Object.extend("Config"));
+  configQuery
+    .equalTo("isRandom", true);
+  
+  var query = new Parse.Query(Parse.Object.extend("Game"));
+  query
+    .matchesQuery("config", configQuery)
+    .equalTo("state", 1)
+    .find()
+    .then(
+      function(games) {
+        if (games) {
+          return Parse.Object.destroyAll(games);
+        } else {
+          return Parse.Promise.reject("No games found.");
+        }
+      }
+    ).then(
+      function() {
+        res.status(200).send("Done!");
+      },
+      function(error) {
+        res.status(500).send(error);
+      }
+    );
 
 });
 

@@ -30,7 +30,7 @@ function requestLogin(username, password) {
       "?username=" + encodeURIComponent(username) + 
       "&password=" + encodeURIComponent(password),
     headers: {
-      "X-Parse-Application-Id": "myAppId",
+      "X-Parse-Application-Id": "pbserver",
       "X-Parse-Master-Key": "12345"
     }
   });
@@ -46,11 +46,29 @@ function parseCall(username, funcname, payload) {
     path: urlParse + "functions/" + funcname,
     headers: {
       "Content-Type": "application/json",
-      "X-Parse-Application-Id": "myAppId",
+      "X-Parse-Application-Id": "pbserver",
       "X-Parse-Session-Token": token
     },
     entity: payload
+  }).then(function(response) {
+    response.should.have.property("entity");
+    return Promise.resolve(response.entity);
   });
+}
+
+function entityResult(entity) {
+  if (entity.error) should.not.exist(entity.error.message);
+  entity.should.have.property("result");
+  return entity.result;
+}
+
+function entityGameId(entity) {
+  var result = entityResult(entity);
+  result.should.have.property("game");
+  var game = result.game;
+  game.should.have.property("objectId");
+  game.objectId.should.be.a("string");
+  return game.objectId;
 }
 
 function getUserSessions() {
@@ -79,8 +97,8 @@ function getUserSessions() {
       return Promise.when(promises).then(
         function(results) {
           results.forEach(function(loginResult) {
-            var user = loginResult.entity.username;
-            tokens[user] = loginResult.entity.sessionToken;
+            var user = loginResult.username;
+            tokens[user] = loginResult.sessionToken;
             console.log("Updated session token for " + user);
           }, this);
 
@@ -105,8 +123,12 @@ function getUserSessions() {
   return mainPromise;
 }
 
-function joinGameCheck(result) {
-  result.should.have.deep.property("entity.result.playerId");
+function joinGameCheck(entity) {
+  entity.should.have.deep.property("result.player.objectId");
+}
+
+function resultShouldError(result) {
+  result.should.have.deep.property("error");
 }
 
 function joinGame(name, game, desc, playerFunc) {
@@ -115,9 +137,9 @@ function joinGame(name, game, desc, playerFunc) {
     return parseCall(name, "joinGame", {
       gameId: game.id
     }).then(
-      function(result) {
-        if (playerFunc) playerFunc(result);
-        else joinGameCheck(result);
+      function(entity) {
+        if (playerFunc) playerFunc(entity);
+        else joinGameCheck(entity);
       }
     );
   });
@@ -128,12 +150,9 @@ function listGames(name, games, desc, testFunc) {
     var req = {};
     if (games) req.gameIds = games.map(function(game) { return game.id; });
     return parseCall(name, "listGames", req).then(
-      function(result) {
-        result.should.have.deep.property("entity.result");
-        
-        var games = result.entity.result;
+      function(entity) {
+        var games = entityResult(entity);
         games.should.be.an("array");
-        
         testFunc(games);
       }
     );
@@ -148,30 +167,130 @@ function getGame(name, game, desc, testFunc) {
   });
 }
 
-function makeTurn(name, game, turnNumber, allow) {
-  it('should ' + (allow ? 'allow' : 'deny') + ' game turn by ' + name, function() {
+function makeTurn(name, game, type, turnNumber) {
+  it('should ' + type + ' game turn by ' + name, function() {
     return parseCall(name, "gameTurn", {
       gameId: game.id,
-      state: "turn " + turnNumber
+      state: "turn " + turnNumber,
+      final: type == "finish"
     }).then(
-      function(result) {
-        if (allow) {
-          result.should.have.deep.property("entity.result.saved");
-          result.entity.result.saved.should.equal(true);
-        } else {
-          result.should.have.deep.property("entity.code");
-          result.entity.code.should.equal(141);
+      function(entity) {
+        switch (type) {
+          case "allow":
+            entity.should.have.deep.property("result.saved");
+            entity.result.saved.should.equal(true);
+            break;
+          
+          case "deny":
+            entity.should.have.property("code");
+            entity.code.should.equal(141);
+            break;
+
+          case "finish":
+            var result = entityResult(entity);
+            result.should.have.property("saved");
+            result.saved.should.equal(true);
+            result.should.have.property("ended");
+            result.ended.should.equal(true);
+            break;
+
+          default:
+            should.fail(entity, "supported type", "Invalid turn type");
         }
       }
     );
   });
 }
-function makeAndAllowTurn(name, game, turnNumber) { makeTurn(name, game, turnNumber, true); }
-function makeAndDenyTurn(name, game, turnNumber) { makeTurn(name, game, turnNumber, false); }
 
 
-describe('simple game loop', function() {
+describe('game flow', function() {
   before(getUserSessions);
+
+  describe('request game', function() {
+
+    var game = {};
+
+    it('should remove random games first', function() {
+      return client({
+        path: urlRoot + "purgeRandomGames",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Parse-Application-Id": "pbserver",
+          "X-Parse-Master-Key": "12345"
+        }
+      });
+    });
+
+    it('should create a random game and get the game id with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        "slotNum": 3,
+        "isRandom": true,
+        "fameCardNum": 10,
+        "aiNum": 0,
+        "turnMaxSec": 60
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+        }
+      );
+    });
+
+    
+    it('requests a random game with Bob', function() {
+      return parseCall("Bob", "requestGame", {
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.playerCount.should.equal(2);
+          result.should.have.property("game");
+          var randomGame = result.game;
+          randomGame.config.isRandom.should.equal(true);
+          randomGame.state.should.equal(GameState.Lobby);
+          randomGame.objectId.should.equal(game.id);
+        }
+      );
+    });
+
+    joinGame("Bob", game, "should auto-join Bob into the game", resultShouldError);
+
+    it('starts the game by requesting a random game with Carol', function() {
+      return parseCall("Carol", "requestGame", {
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.playerCount.should.equal(3);
+          result.should.have.property("game");
+          var randomGame = result.game;
+          randomGame.config.isRandom.should.equal(true);
+          randomGame.state.should.equal(GameState.Running);
+          randomGame.objectId.should.equal(game.id);
+        }
+      );
+    });
+
+    joinGame("Carol", game, "should auto-join Carol into the game", resultShouldError);
+
+    it('creates a new game by requesting a random game with Dan', function() {
+      return parseCall("Dan", "requestGame", {
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("playerCount");
+          result.playerCount.should.equal(1);
+          result.should.have.deep.property("player.user.username");
+          result.player.user.username.should.equal("Dan");
+
+          result.should.have.property("game");
+          var randomGame = result.game;
+          randomGame.config.isRandom.should.equal(true);
+          randomGame.state.should.equal(GameState.Lobby);
+          randomGame.objectId.should.not.equal(game.id);
+        }
+      );
+    });
+
+
+  });
 
   describe('two user game', function() {
     // this.timeout(4000);
@@ -184,17 +303,14 @@ describe('simple game loop', function() {
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
         "slotNum": 2,
-        "isRandom": true,
+        "isRandom": false,
         "fameCardNum": 10,
         "aiNum": 2,
         "turnMaxSec": 60
       }).then(
-        function(result) {
-          result.should.have.deep.property("entity.result.id");
-          var id = result.entity.result.id;
-          id.should.be.a("string");
-          game.id = id;
-          gameByName.Alice = id;
+        function(entity) {
+          game.id = entityGameId(entity);
+          gameByName.Alice = game.id;
         }
       );
     });
@@ -205,13 +321,11 @@ describe('simple game loop', function() {
       game.turn.should.equal(0);
     });
 
-    makeAndDenyTurn("Alice", game);
-    makeAndDenyTurn("Bob", game);
-    makeAndDenyTurn("Carol", game);
+    makeTurn("Alice", game, "deny");
+    makeTurn("Bob",   game, "deny");
+    makeTurn("Carol", game, "deny");
 
-    joinGame("Alice", game, "should fail joining Alice as it's her game", function(result) {
-      result.should.have.deep.property("entity.error");
-    });
+    joinGame("Alice", game, "should fail joining Alice as it's her game", resultShouldError);
     joinGame("Bob", game);
 
     getGame("Alice", game, '', function(game) {
@@ -219,39 +333,34 @@ describe('simple game loop', function() {
       game.turn.should.equal(0);
     });
 
-    joinGame("Carol", game, "should fail joining Carol as the game is running", function(result) {
-      result.should.have.deep.property("entity.error");
-    });
+    joinGame("Carol", game, "should fail joining Carol as the game is running", resultShouldError);
 
     it('creates another game with Bob', function() {
       return parseCall("Bob", "createGame", {
         "slotNum": 4,
-        "isRandom": true,
+        "isRandom": false,
         "fameCardNum": 10,
         "aiNum": 2,
         "turnMaxSec": 60
       }).then(
-        function(result) {
-          result.should.have.deep.property("entity.result.id");
-          var id = result.entity.result.id;
-          id.should.be.a("string");
-          gameByName.Bob = id;
+        function(entity) {
+          gameByName.Bob = entityGameId(entity);
         }
       );
     });
 
     var turnNumber = 0;
 
-    makeAndDenyTurn("Bob", game, turnNumber++);
-    makeAndAllowTurn("Alice", game, turnNumber++);
-    makeAndDenyTurn("Alice", game, turnNumber++);
-    makeAndAllowTurn("Bob", game, turnNumber++);
-    makeAndDenyTurn("Bob", game, turnNumber++);
-    makeAndAllowTurn("Alice", game, turnNumber++);
-    makeAndAllowTurn("Bob", game, turnNumber++);
-    makeAndAllowTurn("Alice", game, turnNumber++);
-    makeAndAllowTurn("Bob", game, turnNumber++);
-    makeAndDenyTurn("Bob", game, turnNumber++);
+    makeTurn("Bob",   game, "deny",  turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Alice", game, "deny",  turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "deny",  turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "deny",  turnNumber++);
 
     getGame("Bob", game, '', function(game) {
       game.state.should.equal(GameState.Running);
@@ -276,7 +385,7 @@ describe('simple game loop', function() {
         'should not return a 3rd party game to ' + name,
         function(games) {
           function gameMatcher(matcher, game) {
-            return game.objectId == ngame;
+            return game.id == ngame;
           }
 
           for (var gname in gameByName) {
@@ -291,6 +400,19 @@ describe('simple game loop', function() {
     
     matchGameId('Alice', game);
     matchGameId('Bob', game);
+
+    makeTurn("Alice", game, "finish", turnNumber++);
+
+    getGame("Bob", game, 'should get the ended game state with one more turn', function(game) {
+      game.state.should.equal(GameState.Ended);
+      game.turn.should.equal(7);
+    });
+
+    makeTurn("Alice", game, "deny");
+    makeTurn("Bob",   game, "deny");
+    makeTurn("Carol", game, "deny");
+    makeTurn("Dan",   game, "deny");
+
   });
 
 
@@ -305,7 +427,7 @@ describe("contacts", function() {
         path: urlRoot + "purgeContacts",
         headers: {
           "Content-Type": "application/json",
-          "X-Parse-Application-Id": "myAppId",
+          "X-Parse-Application-Id": "pbserver",
           "X-Parse-Master-Key": "12345"
         }
       });
@@ -324,9 +446,10 @@ describe("contacts", function() {
       it(desc, function() {
         return parseCall(name, "listFriends", {
         }).then(
-          function(result) {
-            result.should.have.deep.property("entity.result.contacts");
-            var contacts = result.entity.result.contacts;
+          function(entity) {
+            var result = entityResult(entity);
+            result.should.have.property("contacts");
+            var contacts = result.contacts;
             if (nobody) {
               contacts.should.have.length(0);
             } else {
@@ -348,7 +471,7 @@ describe("contacts", function() {
             if (done) done(contacts);
 
           }
-        )
+        );
       });
     }
 
@@ -367,34 +490,14 @@ describe("contacts", function() {
         "aiNum": 2,
         "turnMaxSec": 60
       }).then(
-        function(result) {
-          result.should.have.deep.property("entity.result.id");
-          var id = result.entity.result.id;
-          id.should.be.a("string");
-          game.id = id;
+        function(entity) {
+          game.id = entityGameId(entity);
         }
       );
     });
 
-    it('has Bob join game', function() {
-      return parseCall("Bob", "joinGame", {
-        gameId: game.id
-      }).then(
-        function(result) {
-          result.should.have.deep.property("entity.result.playerId");
-        }
-      );
-    });
-
-    it('has Carol join game', function() {
-      return parseCall("Carol", "joinGame", {
-        gameId: game.id
-      }).then(
-        function(result) {
-          result.should.have.deep.property("entity.result.playerId");
-        }
-      );
-    });
+    joinGame("Bob", game, 'has Bob join game');
+    joinGame("Carol", game, 'has Carol join game');
 
     var bobId;
     contactCheck("Carol", null, ["Alice", "Bob"], ["Carol", "Dan"], function(contacts) {
@@ -410,9 +513,9 @@ describe("contacts", function() {
       return parseCall("Carol", "deleteFriend", {
         userId: bobId
       }).then(
-        function(result) {
-          result.should.have.deep.property("entity.result.deleted");
-          result.entity.result.deleted.should.equal(true);
+        function(entity) {
+          entity.should.have.deep.property("result.deleted");
+          entity.result.deleted.should.equal(true);
         }
       );
     });

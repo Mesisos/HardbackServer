@@ -122,21 +122,69 @@ Parse.Cloud.define("createGame", function(req, res) {
       return createGameFromConfig(req.user, config);
     }
   ).then(
-    function(game) {
-      res.success({
-        id: game.id
-      });
+    function(gameInfo) {
+      res.success(gameInfo);
     },
     defaultError(res)
   );
 
 });
 
+Parse.Cloud.define("requestGame", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+
+  var configQuery = new Parse.Query(Config);
+  configQuery
+    .equalTo("isRandom", true);
+  
+  var query = new Parse.Query(Game);
+  query
+    .matchesQuery("config", configQuery)
+    .equalTo("state", GameState.Lobby)
+    .addAscending("createdAt")
+    .include("config")
+    .first()
+    .then(
+      function(game) {
+        if (game) {
+          return joinGame(game, user);
+        } else {
+          return createConfigFromRandom().then(
+            function(config) {
+              return createGameFromConfig(user, config);
+            }
+          );
+        }
+      }
+    ).then(
+      function(gameInfo) {
+        if (gameInfo) {
+          res.success(gameInfo);
+        } else {
+          res.error("Unable to join a random game.");
+        }
+      },
+      defaultError(res)
+    );
+
+});
+
+// TODO ?
+function createConfigFromRandom() {
+  var config = new Config();
+  config.set("slotNum", 2);
+  config.set("isRandom", true);
+  config.set("fameCardNum", 10);
+  config.set("aiNum", 0);
+  config.set("turnMaxSec", 60);
+  return config.save();
+}
+
 function createConfigFromRequest(req) {
-  var promise = new Parse.Promise();
   var config = new Config();
   config.set("slotNum", Number(req.params.slotNum));
-  config.set("isRandom", req.params.isRandom == "true");
+  config.set("isRandom", Boolean(req.params.isRandom));
   config.set("fameCardNum", Number(req.params.fameCardNum));
   config.set("aiNum", Number(req.params.aiNum));
   config.set("turnMaxSec", Number(req.params.turnMaxSec));
@@ -146,6 +194,7 @@ function createConfigFromRequest(req) {
 function createGameFromConfig(user, config) {
   var promise = new Parse.Promise();
   var savedGame = false;
+  var gameInfo;
   var game = new Game();
   game.set("config", config);
   game.set("state", GameState.Init);
@@ -156,21 +205,22 @@ function createGameFromConfig(user, config) {
       game = g;
       savedGame = true;
       // Join creator into its own game
-      return getPlayer(game, user);
+      return joinGame(game, user);
     }
   ).then(
-    function(player) {
+    function(gi) {
+      gameInfo = gi;
+
       // Set creator player as the current player
-      game.set("currentPlayer", player);
+      game.set("currentPlayer", gameInfo.player);
 
       // Set game state to Lobby
       game.set("state", GameState.Lobby);
       return game.save();
     }
   ).then(
-    function(g) {
-      game = g;
-      promise.resolve(game);
+    function() {
+      promise.resolve(gameInfo);
     },
     function(error) {
       // Try cleaning up before failing
@@ -223,6 +273,8 @@ Parse.Cloud.beforeDelete(Game, function(req, res) {
     }
   );
 
+  // TODO: remove turns
+
 /*
   var turns = new Parse.Query(Turn);
   turns.equalTo("game", game);
@@ -252,73 +304,65 @@ function getPlayerCount(game) {
     .count();
 }
 
-Parse.Cloud.define("joinGame", function(req, res) {
-  var user = req.user;
-  if (errorOnInvalidUser(user, res)) return;
-  
-  var gameId = String(req.params.gameId);
-  var game;
+function joinGame(game, user) {
   var player;
   var playerCount;
-  var query = new Parse.Query(Game);
-  query
-    .include("config")
-    .get(gameId)
-    .then(
-    function(g) {
-      game = g;
-      if (errorOnInvalidGame(game, res, [GameState.Lobby])) return;
-      return getPlayer(game, user);
-    }
-  ).then(
+  
+  function getPlayer(game, user) {
+    var player = new Player();
+    player.set("game", game);
+    player.set("user", user);
+    return player.save();
+  }
+  
+  var initial = game.get("state") == GameState.Init;
+  return getPlayer(game, user).then(
     function(p) {
       player = p;
+      if (initial) return Parse.Promise.resolve();
       return addContacts(game, player);
     }
   ).then(
     function() {
+      if (initial) return Parse.Promise.resolve(1);
       return getPlayerCount(game);
     }
   ).then(
     function(c) {
       playerCount = c;
+      if (initial) return Parse.Promise.resolve(game);
       var maxPlayers = game.get("config").get("slotNum");
+      var promise;
       if (playerCount > maxPlayers) {
+        promise = new Parse.Promise();
         player
           .destroy()
           .then(
             function() {
-              res.error("Unable to join, too full.");
+              promise.reject("Unable to join, too full.");
             },
             function() {
-              res.error("Game too full, but unable to remove player.");
+              promise.reject("Game too full, but unable to remove player.");
             }
           );
       } else if (playerCount == maxPlayers) {
-        return game.set("state", GameState.Running).save();
+        promise = game.set("state", GameState.Running).save();
       } else {
-        return new Parse.Promise.resolve(game);
+        promise = Parse.Promise.resolve(game);
       }
+      return promise;
     }
   ).then(
-    function(g) {
-      game = g;
-      res.success({
+    function(game) {
+      return Parse.Promise.resolve({
         game: game,
         playerCount: playerCount,
-        playerId: player.id
+        player: player
       });
-    },
-    defaultError(res)
+    }
   );
-});
-
-function getPlayer(game, user) {
-  var player = new Player();
-  player.set("game", game);
-  player.set("user", user);
-  return player.save();
 }
+
 Parse.Cloud.beforeSave(Player, function(req, res) {
   var player = req.object;
   
@@ -336,6 +380,30 @@ Parse.Cloud.beforeSave(Player, function(req, res) {
     function(error) {
       res.error(error);
     }
+  );
+});
+
+
+
+Parse.Cloud.define("joinGame", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+  
+  var gameId = String(req.params.gameId);
+  var query = new Parse.Query(Game);
+  query
+    .include("config")
+    .get(gameId)
+    .then(
+    function(game) {
+      if (errorOnInvalidGame(game, res, [GameState.Lobby])) return;
+      return joinGame(game, user);
+    }
+  ).then(
+    function(gameInfo) {
+      res.success(gameInfo);
+    },
+    defaultError(res)
   );
 });
 
@@ -556,11 +624,14 @@ Parse.Cloud.define("listFriends", function(req, res) {
 Parse.Cloud.define("gameTurn", function(req, res) {
   if (errorOnInvalidUser(req.user, res)) return;
 
+  var game;
   var gameId = String(req.params.gameId);
+  var final = Boolean(req.params.final);
   var query = new Parse.Query(Game);
   query.include("currentPlayer");
   query.get(gameId).then(
-    function(game) {
+    function(g) {
+      game = g;
 
       if (errorOnInvalidGame(game, res, [GameState.Running])) return;
 
@@ -577,15 +648,24 @@ Parse.Cloud.define("gameTurn", function(req, res) {
       var turn = new Turn();
       turn.set("game", game);
       turn.set("save", save);
-      turn.save().then(
-        function(turn) {
-          res.success({
-            saved: true
-          });
-        },
-        defaultError(res)
-      );
+      return turn.save();
 
+    }
+  ).then(
+    function(turn) {
+      if (final) {
+        game.set("state", GameState.Ended);
+        return game.save();
+      } else {
+        return Parse.Promise.resolve(game);
+      }
+    }
+  ).then(
+    function(game) {
+      res.success({
+        saved: true,
+        ended: final
+      });
     },
     defaultError(res)
   );

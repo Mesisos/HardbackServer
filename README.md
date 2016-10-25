@@ -14,12 +14,27 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 	* [X] ~~*Lobby*~~
 	* [X] ~~*Running*~~
 	* [ ] Ended
-* [ ] Go over questions and add missing tasks
-* [ ] Start game by timeout
-* [ ] Join by link
+* [X] ~~*Go over questions and add missing tasks*~~
+* [ ] Request random game
+	* [X] ~~*Find a game*~~
+	* [X] ~~*Join game*~~
+	* [X] ~~*Create game if no random exists*~~
+	* [ ] Add the capability of joining into multiple lobbies (it shouldn't try joining in a game it's already in)
+* [X] ~~*Look into Loom integration*~~
+* [ ] Add end game condition flag on game turn call
+	* [X] ~~*End the game*~~
+	* [ ] Send the save to all players (via push notifications?)
+* [ ] Index functions to cloud code with master key
+* [ ] Allow start game by creator after timeout as long as two people are in it
+* [ ] Join via link
+* [ ] Add leaveGame, replace with AI? Game ends if <= 1 person remains?
+* [ ] Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs
 * [ ] Replace defaultError with semantic errors
 * [ ] Query limits?
 * [ ] Filter returned User objects (listFriends etc.)
+
+### Someday
+* [ ] Blocking of friends?
 
 ## Questions
 * [X] Are username and display name separate ala Steam? _Yes_
@@ -41,6 +56,10 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [X] Which states can a game be in? E.g. [Pending, Running, Ended], anything else?
 	* _[Init, Lobby, Running, Ended]_
 * [ ] Does max slots include AI number or not?
+* [ ] Does the game end if < 2 people remain?
+* [ ] Request game
+	* Does request game search with specific config?
+	* Which config should it use 
 
 ## Account
 * [ ] Create account
