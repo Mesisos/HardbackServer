@@ -6,8 +6,10 @@ var Parse = require('parse/node');
 var Promise = Parse.Promise;
 var client = rest.wrap(mime);
 
-var urlRoot = "http://127.0.0.1:1337/";
+var urlRoot = "http://localhost:5000/";
 var urlParse = urlRoot + "parse/";
+var appId = "pbserver";
+var masterKey = "12345";
 
 var logins = [
   { user: "Alice", pass: "p" },
@@ -30,9 +32,12 @@ function requestLogin(username, password) {
       "?username=" + encodeURIComponent(username) + 
       "&password=" + encodeURIComponent(password),
     headers: {
-      "X-Parse-Application-Id": "pbserver",
-      "X-Parse-Master-Key": "12345"
+      "X-Parse-Application-Id": appId,
+      "X-Parse-Master-Key": masterKey
     }
+  }).then(function(response) {
+    response.should.have.property("entity");
+    return Promise.resolve(response.entity);
   });
 }
 
@@ -46,7 +51,7 @@ function parseCall(username, funcname, payload) {
     path: urlParse + "functions/" + funcname,
     headers: {
       "Content-Type": "application/json",
-      "X-Parse-Application-Id": "pbserver",
+      "X-Parse-Application-Id": appId,
       "X-Parse-Session-Token": token
     },
     entity: payload
@@ -215,8 +220,8 @@ describe('game flow', function() {
         path: urlRoot + "purgeRandomGames",
         headers: {
           "Content-Type": "application/json",
-          "X-Parse-Application-Id": "pbserver",
-          "X-Parse-Master-Key": "12345"
+          "X-Parse-Application-Id": appId,
+          "X-Parse-Master-Key": masterKey
         }
       });
     });
@@ -427,8 +432,8 @@ describe("contacts", function() {
         path: urlRoot + "purgeContacts",
         headers: {
           "Content-Type": "application/json",
-          "X-Parse-Application-Id": "pbserver",
-          "X-Parse-Master-Key": "12345"
+          "X-Parse-Application-Id": appId,
+          "X-Parse-Master-Key": masterKey
         }
       });
     });

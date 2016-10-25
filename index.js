@@ -46,94 +46,87 @@ app.get('/', function(req, res) {
   res.status(200).send('I dream of being a PB server.');
 });
 
-// There will be a test page available on the /test path of your server url
-// Remove this before launching your app
-app.get('/test', function(req, res) {
-  res.sendFile(path.join(__dirname, '/public/test.html'));
-});
 
 
+if (process.env.TESTING === "true") {
+    
+  app.get('/createAccount', function(req, res) {
+    var user = new Parse.User();
+    user.set("username", req.query.user);
+    user.set("displayName", req.query.display);
+    user.set("password", req.query.pass);
+    user.set("email", req.query.email);
 
-
-
-
-
-app.get('/createAccount', function(req, res) {
-  var user = new Parse.User();
-  user.set("username", req.query.user);
-  user.set("displayName", req.query.display);
-  user.set("password", req.query.pass);
-  user.set("email", req.query.email);
-
-  user.signUp().then(
-    function(user) {
-      res.status(200).send("Welcome " + user.get("username"));
-    },
-    function(error) {
-      res.status(202).send(error);
-    }
-  );
-});
-
-
-app.get('/purgeContacts', function(req, res) {
-
-  var userQuery = new Parse.Query(Parse.Object.extend("User"));
-  userQuery
-    .containedIn("username", ["Alice", "Bob", "Carol", "Dan"])
-    .find()
-    .then(
-      function(users) {
-        var contactQuery = new Parse.Query(Parse.Object.extend("Contact"));
-        return contactQuery
-          .containedIn("user", users)
-          .find();
-      }
-    ).then(
-      function(contacts) {
-        return Parse.Object.destroyAll(contacts);
-      }
-    ).then(
-      function() {
-        res.status(200).send("Done!");
+    user.signUp().then(
+      function(user) {
+        res.status(200).send("Welcome " + user.get("username"));
       },
       function(error) {
-        res.status(500).send(error);
+        res.status(202).send(error);
       }
     );
+  });
 
-});
 
-app.get('/purgeRandomGames', function(req, res) {
+  app.get('/purgeContacts', function(req, res) {
 
-  var configQuery = new Parse.Query(Parse.Object.extend("Config"));
-  configQuery
-    .equalTo("isRandom", true);
-  
-  var query = new Parse.Query(Parse.Object.extend("Game"));
-  query
-    .matchesQuery("config", configQuery)
-    .equalTo("state", 1)
-    .find()
-    .then(
-      function(games) {
-        if (games) {
-          return Parse.Object.destroyAll(games);
-        } else {
-          return Parse.Promise.reject("No games found.");
+    var userQuery = new Parse.Query(Parse.Object.extend("User"));
+    userQuery
+      .containedIn("username", ["Alice", "Bob", "Carol", "Dan"])
+      .find()
+      .then(
+        function(users) {
+          var contactQuery = new Parse.Query(Parse.Object.extend("Contact"));
+          return contactQuery
+            .containedIn("user", users)
+            .find();
         }
-      }
-    ).then(
-      function() {
-        res.status(200).send("Done!");
-      },
-      function(error) {
-        res.status(500).send(error);
-      }
-    );
+      ).then(
+        function(contacts) {
+          return Parse.Object.destroyAll(contacts);
+        }
+      ).then(
+        function() {
+          res.status(200).send("Done!");
+        },
+        function(error) {
+          res.status(500).send(error);
+        }
+      );
 
-});
+  });
 
+  app.get('/purgeRandomGames', function(req, res) {
+
+    var configQuery = new Parse.Query(Parse.Object.extend("Config"));
+    configQuery
+      .equalTo("isRandom", true);
+    
+    var query = new Parse.Query(Parse.Object.extend("Game"));
+    query
+      .matchesQuery("config", configQuery)
+      .equalTo("state", 1)
+      .find()
+      .then(
+        function(games) {
+          if (games) {
+            return Parse.Object.destroyAll(games);
+          } else {
+            return Parse.Promise.reject("No games found.");
+          }
+        }
+      ).then(
+        function() {
+          res.status(200).send("Done!");
+        },
+        function(error) {
+          res.status(500).send(error);
+        }
+      );
+
+  });
+
+}
 
 
 
@@ -141,7 +134,7 @@ app.get('/purgeRandomGames', function(req, res) {
 
 
 
-var port = process.env.PORT || 1337;
+var port = process.env.PORT;
 var httpServer = require('http').createServer(app);
 httpServer.listen(port, function() {
     console.log('pbserver running on port ' + port + '.');

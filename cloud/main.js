@@ -21,23 +21,6 @@ var GameState = {
   }
 };
 
-Parse.Cloud.define('hello', function(req, res) {
-  console.log("hi");
-  res.success('Hi');
-});
-
-
-
-  // var user = new Parse.User();
-  // user.setUsername("test");
-  // user.signUp().then(
-  //   function(results) {
-  //     res.success("yay");
-  //   },
-  //   function(error) {
-  //     res.error(error);
-  //   }
-  // );
 
 function defaultError(res) {
   return (function(error) {
