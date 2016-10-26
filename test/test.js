@@ -156,9 +156,10 @@ function listGames(name, games, desc, testFunc) {
     if (games) req.gameIds = games.map(function(game) { return game.id; });
     return parseCall(name, "listGames", req).then(
       function(entity) {
-        var games = entityResult(entity);
-        games.should.be.an("array");
-        testFunc(games);
+        var result = entityResult(entity);
+        result.should.have.property("games");
+        result.games.should.be.an("array");
+        testFunc(result.games);
       }
     );
   });
@@ -315,6 +316,13 @@ describe('game flow', function() {
       }).then(
         function(entity) {
           game.id = entityGameId(entity);
+          var result = entityResult(entity);
+          var config = result.game.config;
+          config.slotNum.should.equal(2);
+          config.isRandom.should.equal(false);
+          config.fameCardNum.should.equal(10);
+          config.aiNum.should.equal(2);
+          config.turnMaxSec.should.equal(60);
           gameByName.Alice = game.id;
         }
       );

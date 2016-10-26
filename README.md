@@ -62,8 +62,8 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] Does the game end if < 2 people remain after players leave?
 	_If there is only one human left, the game should still send it to the last player - and then the client can ask if they want to continue the game, and if they do, can just continue it as a solo game until it's finished, and then send the result to the server..._
 * [ ] Request game
-	* Does request game search with specific config?
-	* Which config should it use for the lobby if no game exists?
+	* [ ] Does request game search with specific config? _Probably with a limited set._
+	* [ ] Which config should it use for the lobby if no game exists? _It should probably just return a game/games instead of joining / creating automatically._
 
 ## Account
 * [ ] Create account
@@ -79,6 +79,198 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 ## Security
 * [ ] Input validation
 * [ ] Access security
+
+# API
+
+Subject to change.
+
+All of the returned responses are wrapped in a `result` object if successful, otherwise an `error` is returned, e.g.:
+```
+{
+	"code": 141
+	"error": "Contact not found"
+}
+```
+
+## Login
+
+All of the cloud functions below require you to be logged in as a user.
+
+
+## `checkNameFree`
+### Request
+```
+{
+	"displayName": "name"
+}
+```
+### Response
+```
+{
+	"available": true|false
+}
+```
+
+
+## `createGame`
+### Request
+```
+{
+	// Doesn't include AI right now
+	"slotNum": 2,
+
+	"isRandom": true|false,
+	"fameCardNum": 10,
+	"aiNum": 2,
+
+	// Doesn't do anything right now
+	"turnMaxSec": 60
+}
+```
+### Response
+```
+// Game join response object
+{
+	// Game object
+	"game": {
+		"objectId": "id",
+		"config": {
+			"slotNum": 2,
+			...
+		}
+		...
+	},
+
+	// Number of players after the game was joined
+	"playerCount": 3,
+
+	// Player object of the user
+	"player": {
+		"objectId": "id",
+		...
+	}
+}
+```
+
+
+## `joinGame`
+### Request
+```
+{
+	"gameId": "id"
+}
+```
+### Response
+```
+// Game join response object (see createGame)
+{
+	"game": {...},
+	"playerCount": 3,
+	"player": {...}
+}
+```
+
+
+## `requestGame`
+### Request
+```
+{}
+```
+### Response
+```
+// Game join response object (see createGame)
+{
+	"game": {...},
+	"playerCount": 3,
+	"player": {...}
+}
+```
+
+
+## `listGames`
+### Request
+```
+{
+	// Optional, returns all games if omitted
+	"gameIds": ["idA", "idB", ...]
+}
+```
+### Response
+```
+{
+	"games": [
+		// Game one
+		{
+			"objectId": "idA",
+			...
+		},
+		// Game two
+		{
+			"objectId": "idB",
+			...
+		},
+		...
+	]
+}
+```
+
+
+## `listFriends`
+### Request
+```
+{}
+```
+### Response
+```
+{
+	"contacts": [
+		// A lot of other info here will be stripped later
+		{
+			"displayName": "Ally",
+			"objectId": "idA",
+		},
+		{
+			"displayName": "Bobzor",
+			"objectId": "idB"
+		}
+	]
+}
+```
+
+
+## `deleteFriend`
+### Request
+```
+{
+	"userId": "id"
+}
+```
+### Response
+```
+{
+	"deleted": true
+}
+```
+
+
+## `gameTurn`
+### Request
+```
+{
+	"gameId": "id",
+	"state": "save contents",
+	"final": true|false
+}
+```
+### Response
+```
+{
+	"saved": true,
+	"ended": true|false
+}
+```
+
+
 
 # Database Schema
 

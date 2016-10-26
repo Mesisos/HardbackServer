@@ -480,7 +480,9 @@ Parse.Cloud.define("listGames", function(req, res) {
         var games = players.map(function(player) {
           return player.get("game");
         });
-        res.success(games);
+        res.success({
+          "games": games
+        });
       },
       defaultError(res)
     );

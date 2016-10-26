@@ -21,13 +21,22 @@ package
 
     import loom.social.Parse;
 
+    enum GameState {
+        Init,
+        Lobby,
+        Running,
+        Ended
+    };
+
     public class PaperbackParseExample extends Application
     {
         var sessionToken:String;
 
+        var gameId:String;
+
         override public function run():void
         {
-            Parse.baseServerURL = "http://localhost:1337/parse/";
+            Parse.baseServerURL = "https://paperback.herokuapp.com/parse/";
 
             //Get REST credentials from loom.config file and pass to Parse
             var config = new JSON();
@@ -40,11 +49,25 @@ package
                 trace("Timed out");
             };
 
-            loginUser("Alice", "p", loggedIn);
+            loginUser("Alice", "p", createGame);
         }
 
-        private function loggedIn()
-        {    
+        private function printGameResponse(result:JSON)
+        {
+            if (!result) return;
+
+            var game:JSON = result.getValue("game") as JSON;
+            gameId = game.getValue("objectId") as String;
+            var gameState:GameState = game.getValue("state") as GameState;
+            var playerId:String = (result.getValue("player") as JSON).getValue("objectId") as String;
+            var playerCount:int = result.getValue("playerCount") as int;
+
+            trace("Game: " + gameId + "  State: " + gameState + "  Players: " + playerCount + "  Player: " + playerId);
+        }
+
+        private function createGame()
+        {
+            trace("Creating a game");
             Parse.REST_callCloudFunction(
                 "createGame",
                 JSON.fromDictionary({
@@ -54,13 +77,35 @@ package
                     "aiNum": 0,
                     "turnMaxSec": 60
                 }),
-                function(result:ByteArray)
+                function(response:ByteArray)
                 {
-                    trace("Created game: " + result.toString());
+                    var responseJSON:JSON = JSON.parse(response.toString());
+                    printGameResponse(responseJSON.getValue("result") as JSON);
+                    loginUser("Bob", "p", joinGame);
                 },
-                function(result:ByteArray)
+                function(response:ByteArray)
                 {
-                    trace("Error: " + result.toString());
+                    trace("Error: " + response.toString());
+                }
+            );
+        }
+
+        private function joinGame()
+        {
+            trace("Joining the game");
+            Parse.REST_callCloudFunction(
+                "joinGame",
+                JSON.fromDictionary({
+                    "gameId": gameId
+                }),
+                function(response:ByteArray)
+                {
+                    var responseJSON:JSON = JSON.parse(response.toString());
+                    printGameResponse(responseJSON.getValue("result") as JSON);
+                },
+                function(response:ByteArray)
+                {
+                    trace("Error: " + response.toString());
                 }
             );
         }
