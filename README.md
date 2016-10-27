@@ -13,15 +13,18 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 	* [X] ~~*Init*~~
 	* [X] ~~*Lobby*~~
 	* [X] ~~*Running*~~
-	* [ ] Ended
+	* [X] ~~*Ended*~~
 * [X] ~~*Go over questions and add missing tasks*~~
 * [ ] Request random game
 	* [X] ~~*Find a game*~~
 	* [X] ~~*Join game*~~
 	* [X] ~~*Create game if no random exists*~~
 	* [ ] Actually don't create a game and just return failure
+	* [ ] Just return a list of available random games?
+	* [ ] Possible paging via date offset and number limit
 	* [ ] Add the capability of joining into multiple lobbies (it shouldn't try joining in a game it's already in)
 * [X] ~~*Look into Loom integration*~~
+* [X] ~~*Fame card per-card counts*~~
 * [ ] Add end game condition flag on game turn call
 	* [X] ~~*End the game*~~
 	* [ ] Send the save to all players (via push notifications?)
@@ -31,7 +34,7 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] Allow start game by creator after timeout as long as two people are in it
 * [ ] Join via link
 * [ ] Add leaveGame, replace with AI? Game ends if <= 1 person remains?
-* [ ] Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs
+* [ ] Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips
 * [ ] Replace defaultError with semantic errors
 * [ ] Query limits?
 * [ ] Filter returned User objects (listFriends etc.)
@@ -120,7 +123,12 @@ All of the cloud functions below require you to be logged in as a user.
 	"slotNum": 2,
 
 	"isRandom": true|false,
-	"fameCardNum": 10,
+	"fameCards": {
+		"The Chinatown Connection": 6,
+		"Dead Planet": 4,
+		"Vicious Triangle": 3,
+		"Lady of the West": 1
+	},
 	"aiNum": 2,
 
 	// Doesn't do anything right now

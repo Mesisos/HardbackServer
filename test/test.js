@@ -310,7 +310,7 @@ describe('game flow', function() {
       return parseCall("Alice", "createGame", {
         "slotNum": 2,
         "isRandom": false,
-        "fameCardNum": 10,
+        "fameCards": { "The Chinatown Connection": 3 },
         "aiNum": 2,
         "turnMaxSec": 60
       }).then(
@@ -320,7 +320,8 @@ describe('game flow', function() {
           var config = result.game.config;
           config.slotNum.should.equal(2);
           config.isRandom.should.equal(false);
-          config.fameCardNum.should.equal(10);
+          config.fameCards.should.have.property("The Chinatown Connection");
+          config.fameCards["The Chinatown Connection"].should.equal(3);
           config.aiNum.should.equal(2);
           config.turnMaxSec.should.equal(60);
           gameByName.Alice = game.id;

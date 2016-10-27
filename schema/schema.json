@@ -27,9 +27,9 @@
 	"createdAt": "date",
 	"slotNum": "number",
 	"isRandom": "boolean",
-	"fameCardNum": "number",
 	"aiNum": "number",
-	"turnMaxSec": "number"
+	"turnMaxSec": "number",
+	"fameCards": "object"
 }
 {
 	"_id": "Player",

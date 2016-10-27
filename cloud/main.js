@@ -21,6 +21,13 @@ var GameState = {
   }
 };
 
+var fameCardNames = [
+  "The Chinatown Connection",
+  "Dead Planet",
+  "Vicious Triangle",
+  "Lady of the West"
+];
+
 
 function defaultError(res) {
   return (function(error) {
@@ -153,12 +160,12 @@ Parse.Cloud.define("requestGame", function(req, res) {
 
 });
 
-// TODO ?
+// TODO remove this as it's not needed anymore
 function createConfigFromRandom() {
   var config = new Config();
   config.set("slotNum", 2);
   config.set("isRandom", true);
-  config.set("fameCardNum", 10);
+  config.set("fameCards", {});
   config.set("aiNum", 0);
   config.set("turnMaxSec", 60);
   return config.save();
@@ -168,7 +175,21 @@ function createConfigFromRequest(req) {
   var config = new Config();
   config.set("slotNum", Number(req.params.slotNum));
   config.set("isRandom", Boolean(req.params.isRandom));
-  config.set("fameCardNum", Number(req.params.fameCardNum));
+  
+  var reqFameCards = req.params.fameCards;
+  var fameCards = {};
+  if (reqFameCards) {
+    for (var i in fameCardNames) {
+      var fameCardName = fameCardNames[i];
+      var reqFameCard = Number(reqFameCards[fameCardName]);
+      console.log(fameCardName, reqFameCard)
+      if (!isNaN(reqFameCard)) {
+        fameCards[fameCardName] = reqFameCard;
+      }
+    }
+  }
+  config.set("fameCards", fameCards);
+
   config.set("aiNum", Number(req.params.aiNum));
   config.set("turnMaxSec", Number(req.params.turnMaxSec));
   return config.save();
