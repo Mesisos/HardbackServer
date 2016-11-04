@@ -212,92 +212,6 @@ function makeTurn(name, game, type, turnNumber) {
 describe('game flow', function() {
   before(getUserSessions);
 
-  describe('request game', function() {
-
-    var game = {};
-
-    it('should remove random games first', function() {
-      return client({
-        path: urlRoot + "purgeRandomGames",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Parse-Application-Id": appId,
-          "X-Parse-Master-Key": masterKey
-        }
-      });
-    });
-
-    it('should create a random game and get the game id with Alice', function() {
-      return parseCall("Alice", "createGame", {
-        "slotNum": 3,
-        "isRandom": true,
-        "fameCardNum": 10,
-        "aiNum": 0,
-        "turnMaxSec": 60
-      }).then(
-        function(entity) {
-          game.id = entityGameId(entity);
-        }
-      );
-    });
-
-    
-    it('requests a random game with Bob', function() {
-      return parseCall("Bob", "requestGame", {
-      }).then(
-        function(entity) {
-          var result = entityResult(entity);
-          result.playerCount.should.equal(2);
-          result.should.have.property("game");
-          var randomGame = result.game;
-          randomGame.config.isRandom.should.equal(true);
-          randomGame.state.should.equal(GameState.Lobby);
-          randomGame.objectId.should.equal(game.id);
-        }
-      );
-    });
-
-    joinGame("Bob", game, "should auto-join Bob into the game", resultShouldError);
-
-    it('starts the game by requesting a random game with Carol', function() {
-      return parseCall("Carol", "requestGame", {
-      }).then(
-        function(entity) {
-          var result = entityResult(entity);
-          result.playerCount.should.equal(3);
-          result.should.have.property("game");
-          var randomGame = result.game;
-          randomGame.config.isRandom.should.equal(true);
-          randomGame.state.should.equal(GameState.Running);
-          randomGame.objectId.should.equal(game.id);
-        }
-      );
-    });
-
-    joinGame("Carol", game, "should auto-join Carol into the game", resultShouldError);
-
-    it('creates a new game by requesting a random game with Dan', function() {
-      return parseCall("Dan", "requestGame", {
-      }).then(
-        function(entity) {
-          var result = entityResult(entity);
-          result.should.have.property("playerCount");
-          result.playerCount.should.equal(1);
-          result.should.have.deep.property("player.user.username");
-          result.player.user.username.should.equal("Dan");
-
-          result.should.have.property("game");
-          var randomGame = result.game;
-          randomGame.config.isRandom.should.equal(true);
-          randomGame.state.should.equal(GameState.Lobby);
-          randomGame.objectId.should.not.equal(game.id);
-        }
-      );
-    });
-
-
-  });
-
   describe('two user game', function() {
     // this.timeout(4000);
 
@@ -353,7 +267,7 @@ describe('game flow', function() {
       return parseCall("Bob", "createGame", {
         "slotNum": 4,
         "isRandom": false,
-        "fameCardNum": 10,
+        "fameCards": { "The Chinatown Connection": 3 },
         "aiNum": 2,
         "turnMaxSec": 60
       }).then(
@@ -429,6 +343,152 @@ describe('game flow', function() {
 
   });
 
+  describe('find games', function() {
+
+    var gameInfos = [];
+    var gameToJoin = {};
+    var gameNum = 5;
+
+    it('should remove random games first', function() {
+      return client({
+        path: urlRoot + "purgeRandomGames",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Parse-Application-Id": appId,
+          "X-Parse-Master-Key": masterKey
+        }
+      });
+    });
+    
+    for (var gameIndex = 0; gameIndex < gameNum; gameIndex++) {
+      it('should make Alice create random game #' + gameIndex + ' and get the result', function() {
+        return parseCall("Alice", "createGame", {
+          "slotNum": 3,
+          "isRandom": true,
+          "fameCards": { "The Chinatown Connection": 3 },
+          "aiNum": 0,
+          "turnMaxSec": 60
+        }).then(
+          function(entity) {
+            var gameInfo = entityResult(entity);
+            gameInfo.should.have.property("game");
+            if (gameInfos.length == 1) gameToJoin.id = gameInfo.game.objectId;
+            gameInfos.push(gameInfo);
+          }
+        );
+      });
+    }
+
+    it('finds random games with Bob that match the above', function() {
+      return parseCall("Bob", "findGames", {
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          should.not.exist(result.playerCount);
+          result.should.have.property("games");
+          var games = result.games;
+          games.should.have.length(gameNum);
+          for (var gameIndex = 0; gameIndex < gameNum; gameIndex++) {
+            var game = games[gameIndex];
+            should.exist(game);
+            game.should.have.property("objectId");
+            game.objectId.should.equal(gameInfos[gameIndex].game.objectId);
+          }
+        }
+      );
+    });
+
+    joinGame("Bob", gameToJoin, "should try joining the second one with Bob");
+    joinGame("Bob", gameToJoin, "should not be able to join twice", resultShouldError);
+
+  });
+
+  describe('request game', function() {
+
+    var game = {};
+
+    it('should remove random games first', function() {
+      return client({
+        path: urlRoot + "purgeRandomGames",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Parse-Application-Id": appId,
+          "X-Parse-Master-Key": masterKey
+        }
+      });
+    });
+
+    it('should create a random game and get the game id with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        "slotNum": 3,
+        "isRandom": true,
+        "fameCards": { "The Chinatown Connection": 3 },
+        "aiNum": 0,
+        "turnMaxSec": 60
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+        }
+      );
+    });
+
+    
+    it('requests a random game with Bob', function() {
+      return parseCall("Bob", "requestGame", {
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.playerCount.should.equal(2);
+          result.should.have.property("game");
+          var randomGame = result.game;
+          randomGame.config.isRandom.should.equal(true);
+          randomGame.state.should.equal(GameState.Lobby);
+          randomGame.objectId.should.equal(game.id);
+        }
+      );
+    });
+
+    joinGame("Bob", game, "should auto-join Bob into the game", resultShouldError);
+
+    it('starts the game by requesting a random game with Carol', function() {
+      return parseCall("Carol", "requestGame", {
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.playerCount.should.equal(3);
+          result.should.have.property("game");
+          var randomGame = result.game;
+          randomGame.config.isRandom.should.equal(true);
+          randomGame.state.should.equal(GameState.Running);
+          randomGame.objectId.should.equal(game.id);
+        }
+      );
+    });
+
+    joinGame("Carol", game, "should auto-join Carol into the game", resultShouldError);
+
+    it('creates a new game by requesting a random game with Dan', function() {
+      return parseCall("Dan", "requestGame", {
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("playerCount");
+          result.playerCount.should.equal(1);
+          result.should.have.deep.property("player.user.username");
+          result.player.user.username.should.equal("Dan");
+
+          result.should.have.property("game");
+          var randomGame = result.game;
+          randomGame.config.isRandom.should.equal(true);
+          randomGame.state.should.equal(GameState.Lobby);
+          randomGame.objectId.should.not.equal(game.id);
+        }
+      );
+    });
+
+
+  });
+
 
 });
 
@@ -500,7 +560,7 @@ describe("contacts", function() {
       return parseCall("Alice", "createGame", {
         "slotNum": 4,
         "isRandom": true,
-        "fameCardNum": 10,
+        "fameCards": { "The Chinatown Connection": 3 },
         "aiNum": 2,
         "turnMaxSec": 60
       }).then(

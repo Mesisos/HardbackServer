@@ -163,6 +163,41 @@ Parse.Cloud.define("requestGame", function(req, res) {
 
 });
 
+
+Parse.Cloud.define("findGames", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+
+  var configQuery = new Query(Config);
+  configQuery
+    .equalTo("isRandom", true);
+  
+  var query = new Query(Game);
+  query
+    .matchesQuery("config", configQuery)
+    .equalTo("state", GameState.Lobby)
+    .addAscending("createdAt")
+    .include("config")
+    .find()
+    .then(
+      function(games) {
+        if (games) {
+          res.success({
+            "games": games
+          });
+        } else {
+          res.error("No games found.");
+        }
+      },
+      defaultError(res)
+    );
+
+});
+
+
+
+
+
 // TODO remove this as it's not needed anymore
 function createConfigFromRandom() {
   var config = new Config();
@@ -185,7 +220,6 @@ function createConfigFromRequest(req) {
     for (var i in fameCardNames) {
       var fameCardName = fameCardNames[i];
       var reqFameCard = Number(reqFameCards[fameCardName]);
-      console.log(fameCardName, reqFameCard)
       if (!isNaN(reqFameCard)) {
         fameCards[fameCardName] = reqFameCard;
       }
