@@ -29,7 +29,7 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 	* [X] ~~*End the game*~~
 	* [ ] Send the save to all players (via push notifications?)
 * [ ] Explicit 
-* [ ] Fix maxSlots so it includes AI
+* [X] ~~*Fix maxSlots so it includes AI*~~
 * [ ] Index functions to cloud code with master key
 * [ ] Allow start game by creator after timeout as long as two people are in it
 * [ ] Join via link
@@ -38,6 +38,7 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] Replace defaultError with semantic errors
 * [ ] Query limits?
 * [ ] Filter returned User objects (listFriends etc.)
+* [ ] Verify parameter validity on saving of all (most? at least Game?) objects
 
 ### Someday
 * [ ] Blocking of friends?

@@ -386,7 +386,8 @@ function joinGame(game, user) {
     function(c) {
       playerCount = c;
       if (initial) return Promise.resolve(game);
-      var maxPlayers = game.get("config").get("slotNum");
+      var config = game.get("config");
+      var maxPlayers = config.get("slotNum") - config.get("aiNum");
       var promise;
       if (playerCount > maxPlayers) {
         promise = new Promise();

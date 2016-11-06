@@ -222,21 +222,21 @@ describe('game flow', function() {
 
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
-        "slotNum": 2,
+        "slotNum": 3,
         "isRandom": false,
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiNum": 2,
+        "aiNum": 1,
         "turnMaxSec": 60
       }).then(
         function(entity) {
           game.id = entityGameId(entity);
           var result = entityResult(entity);
           var config = result.game.config;
-          config.slotNum.should.equal(2);
+          config.slotNum.should.equal(3);
           config.isRandom.should.equal(false);
           config.fameCards.should.have.property("The Chinatown Connection");
           config.fameCards["The Chinatown Connection"].should.equal(3);
-          config.aiNum.should.equal(2);
+          config.aiNum.should.equal(1);
           config.turnMaxSec.should.equal(60);
           gameByName.Alice = game.id;
         }
@@ -268,7 +268,7 @@ describe('game flow', function() {
         "slotNum": 4,
         "isRandom": false,
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiNum": 2,
+        "aiNum": 0,
         "turnMaxSec": 60
       }).then(
         function(entity) {
@@ -633,7 +633,7 @@ describe("contacts", function() {
         "slotNum": 4,
         "isRandom": true,
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiNum": 2,
+        "aiNum": 0,
         "turnMaxSec": 60
       }).then(
         function(entity) {
