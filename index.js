@@ -9,6 +9,7 @@ var express = require('express');
 var ParseServer = require('parse-server').ParseServer;
 var path = require('path');
 var util = require('util');
+var humanTime = require('human-time');
 
 var databaseUri = process.env.DATABASE_URI || process.env.MONGODB_URI;
 
@@ -21,7 +22,7 @@ var serverConfig = {
   cloud: process.env.CLOUD_CODE_MAIN || __dirname + '/cloud/main.js',
   appId: process.env.APP_ID,
   masterKey: process.env.MASTER_KEY, //Add your master key here. Keep it secret!
-  serverURL: process.env.SERVER_URL,  // Don't forget to change to https if needed
+  serverURL: process.env.SERVER_ROOT + process.env.PARSE_MOUNT,  // Don't forget to change to https if needed
   liveQuery: {
     classNames: [] // List of classes to support for query subscriptions
   }
@@ -46,6 +47,36 @@ app.get('/', function(req, res) {
   res.status(200).send('I dream of being a PB server.');
 });
 
+
+// Templating setup
+var mustacheExpress = require('mustache-express');
+
+// Register '.html' extension with The Mustache Express
+app.engine('html', mustacheExpress());
+app.set('view engine', 'html');
+
+
+// Views
+app.get('/join/:inviteId', function(req, res) {
+  var inviteId = String(req.params.inviteId);
+  
+  var query = new Parse.Query(Parse.Object.extend("Invite"));
+  query
+    .include("inviter")
+    .include("inviter.game")
+    .include("inviter.user")
+    .get(inviteId)
+    .then(
+      function(invite) {
+        var inv = invite.toJSON();
+        inv.createdAtHuman = humanTime(new Date(inv.createdAt));
+        res.render("join", { invite: inv });
+      },
+      function(error) {
+        res.render("join", { error: error });
+      }
+    );
+});
 
 
 if (process.env.TESTING === "true") {

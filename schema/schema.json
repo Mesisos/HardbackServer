@@ -68,3 +68,10 @@
 	"user": "*_User",
 	"contact": "*_User"
 }
+{
+	"_id": "Invite",
+	"objectId": "string",
+	"updatedAt": "date",
+	"createdAt": "date",
+	"inviter": "*Player"
+}

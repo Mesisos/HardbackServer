@@ -30,10 +30,12 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 	* [ ] Send the save to all players (via push notifications?)
 * [ ] Explicit 
 * [X] ~~*Fix maxSlots so it includes AI*~~
-* [ ] Index functions to cloud code with master key
 * [ ] Allow start game by creator after timeout as long as two people are in it
 * [ ] Join via link
+	* [ ] Add test to getInvite
+* [ ] Clean up responses so they don't contain too much stuff
 * [ ] Add leaveGame, replace with AI? Game ends if <= 1 person remains?
+* [ ] Index functions to cloud code with master key
 * [ ] Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips
 * [ ] Replace defaultError with semantic errors
 * [ ] Query limits?
@@ -68,6 +70,8 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] Request game
 	* [ ] Does request game search with specific config? _Probably with a limited set._
 	* [ ] Which config should it use for the lobby if no game exists? _It should probably just return a game/games instead of joining / creating automatically._
+* [ ] Invite message?
+* [ ] Custom game names / titles?
 
 ## Account
 * [ ] Create account

@@ -63,6 +63,7 @@ function parseCall(username, funcname, payload) {
 
 function entityResult(entity) {
   if (entity.error) should.not.exist(entity.error.message);
+  if (entity.code) should.not.exist(entity.message);
   entity.should.have.property("result");
   return entity.result;
 }

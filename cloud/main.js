@@ -1,5 +1,6 @@
 
 var util = require("util");
+var constants = require('./constants.js');
 
 var Promise = Parse.Promise;
 var Query = Parse.Query;
@@ -9,28 +10,21 @@ var Config = Parse.Object.extend("Config");
 var Turn = Parse.Object.extend("Turn");
 var Player = Parse.Object.extend("Player");
 var Contact = Parse.Object.extend("Contact");
+var Invite = Parse.Object.extend("Invite");
 
 var GameState = {
-  Init: 0,
-  Lobby: 1,
-  Running: 2,
-  Ended: 3,
+    Init: 0,
+    Lobby: 1,
+    Running: 2,
+    Ended: 3,
 
-  getName: function(state) {
-    for (var prop in GameState) {
-      if (GameState[prop] == state) return prop;
+    getName: function(state) {
+        for (var prop in GameState) {
+        if (GameState[prop] == state) return prop;
+        }
+        return null;
     }
-    return null;
-  }
 };
-
-var fameCardNames = [
-  "The Chinatown Connection",
-  "Dead Planet",
-  "Vicious Triangle",
-  "Lady of the West"
-];
-
 
 function defaultError(res) {
   return (function(error) {
@@ -121,6 +115,61 @@ Parse.Cloud.define("createGame", function(req, res) {
     defaultError(res)
   );
 
+});
+
+function getInviteLink(invite) {
+  return constants.INVITE_URL_PREFIX + invite.id;
+}
+
+function getInvite(player) {
+  var query = new Query(Invite);
+  return query
+    .equalTo("inviter", player)
+    .include("inviter")
+    .first()
+    .then(
+      function(invite) {
+        if (invite) return Promise.resolve(invite);
+        invite = new Invite();
+        invite.set("inviter", player);
+        return invite.save();
+      }
+    ).then(
+      function(invite) {
+        if (!invite) return Promise.reject("Unable to get invite.");
+        return Promise.resolve(invite);
+      }
+    );
+}
+
+Parse.Cloud.define("getInvite", function(req, res) {
+  if (errorOnInvalidUser(req.user, res)) return;
+
+  var gameId = String(req.params.gameId);
+  
+  var gameQuery = new Query(Game);
+  gameQuery.equalTo("objectId", gameId);
+
+  var query = new Query(Player);
+  query
+    .equalTo("user", req.user)
+    .matchesQuery("game", gameQuery)
+    .first()
+    .then(
+      function(player) {
+        if (!player) return Promise.reject("Unable to find player.");
+        return getInvite(player);
+      }
+    ).then(
+      function(invite) {
+        res.success({
+          "invite": invite,
+          "link": getInviteLink(invite)
+        });
+      },
+      defaultError(res)
+    );
+  
 });
 
 Parse.Cloud.define("requestGame", function(req, res) {
@@ -231,6 +280,7 @@ function createConfigFromRequest(req) {
   var reqFameCards = req.params.fameCards;
   var fameCards = {};
   if (reqFameCards) {
+    var fameCardNames = constants.FAME_CARD_NAMES;
     for (var i in fameCardNames) {
       var fameCardName = fameCardNames[i];
       var reqFameCard = Number(reqFameCards[fameCardName]);
