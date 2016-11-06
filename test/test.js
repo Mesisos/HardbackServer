@@ -1,3 +1,7 @@
+var constants = {
+  INVITE_URL_PREFIX: "http://127.0.0.1:5000/join/"
+};
+
 var should = require('chai').should();
 var fs = require('fs');
 var rest = require('rest');
@@ -243,6 +247,36 @@ describe('game flow', function() {
         }
       );
     });
+
+    
+    it('gets an invite link with Alice', function() {
+      return parseCall("Alice", "getInvite", {
+        "gameId": game.id
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("link");
+          game.invite = result.link;
+          result.should.have.deep.property("invite.inviter.game.objectId");
+          result.invite.inviter.game.objectId.should.equal(game.id);
+          result.link.should.equal(constants.INVITE_URL_PREFIX + result.invite.objectId);
+        }
+      );
+    });
+
+
+    it('gets the same invite link with Alice', function() {
+      return parseCall("Alice", "getInvite", {
+        "gameId": game.id
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("link");
+          result.link.should.equal(game.invite);
+        }
+      );
+    });
+
 
 
     getGame("Alice", game, '', function(game) {

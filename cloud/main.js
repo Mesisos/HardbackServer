@@ -378,6 +378,7 @@ Parse.Cloud.beforeDelete(Game, function(req, res) {
     }
   );
 
+  // TODO: remove invites
   // TODO: remove turns
 
 /*
