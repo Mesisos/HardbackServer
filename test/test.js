@@ -370,23 +370,25 @@ describe('game flow', function() {
         }
       );
     });
+
+    function createRandomGame(gameInfos) {
+      return parseCall("Alice", "createGame", {
+        "slotNum": 3,
+        "isRandom": true,
+        "fameCards": { "The Chinatown Connection": 3 },
+        "aiNum": 0,
+        "turnMaxSec": 60
+      }).then(
+        function(entity) {
+          var gameInfo = entityResult(entity);
+          gameInfo.should.have.property("game");
+          gameInfos.push(gameInfo);
+        }
+      );
+    }
     
     for (var gameIndex = 0; gameIndex < gameNum; gameIndex++) {
-      it('should make Alice create random game #' + gameIndex + ' and get the result', function() {
-        return parseCall("Alice", "createGame", {
-          "slotNum": 3,
-          "isRandom": true,
-          "fameCards": { "The Chinatown Connection": 3 },
-          "aiNum": 0,
-          "turnMaxSec": 60
-        }).then(
-          function(entity) {
-            var gameInfo = entityResult(entity);
-            gameInfo.should.have.property("game");
-            gameInfos.push(gameInfo);
-          }
-        );
-      });
+      it('should make Alice create random game #' + gameIndex + ' and get the result', createRandomGame.bind(null, gameInfos));
     }
 
     it('finds random games with Bob that match the above', function() {
