@@ -347,7 +347,7 @@ describe('game flow', function() {
 
     var gameInfos = [];
     var gameToJoin = {};
-    var gameNum = 5;
+    var gameNum = 7;
 
     it('should remove random games first', function() {
       return client({
@@ -358,6 +358,17 @@ describe('game flow', function() {
           "X-Parse-Master-Key": masterKey
         }
       });
+    });
+
+    it('finds no games with Bob after all of them are removed', function() {
+      return parseCall("Bob", "findGames", {
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("games");
+          result.games.should.have.length(0);
+        }
+      );
     });
     
     for (var gameIndex = 0; gameIndex < gameNum; gameIndex++) {
@@ -372,7 +383,6 @@ describe('game flow', function() {
           function(entity) {
             var gameInfo = entityResult(entity);
             gameInfo.should.have.property("game");
-            if (gameInfos.length == 1) gameToJoin.id = gameInfo.game.objectId;
             gameInfos.push(gameInfo);
           }
         );
@@ -398,7 +408,69 @@ describe('game flow', function() {
       );
     });
 
-    joinGame("Bob", gameToJoin, "should try joining the second one with Bob");
+    it('finds the first three games with Bob', function() {
+      return parseCall("Bob", "findGames", {
+        "limit": 3
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          should.not.exist(result.playerCount);
+          result.should.have.property("games");
+          var games = result.games;
+          games.should.have.length(3);
+          for (var gameIndex = 0; gameIndex < 3; gameIndex++) {
+            games.should.have.property(gameIndex);
+            var game = games[gameIndex];
+            game.should.have.property("objectId");
+            game.objectId.should.equal(gameInfos[gameIndex].game.objectId);
+          }
+        }
+      );
+    });
+
+    it('finds the next three games with Bob', function() {
+      return parseCall("Bob", "findGames", {
+        "limit": 3,
+        "skip": 3
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          should.not.exist(result.playerCount);
+          result.should.have.property("games");
+          var games = result.games;
+          games.should.have.length(3);
+          for (var gameIndex = 0; gameIndex < 3; gameIndex++) {
+            games.should.have.property(gameIndex);
+            var game = games[gameIndex];
+            game.should.have.property("objectId");
+            game.objectId.should.equal(gameInfos[3 + gameIndex].game.objectId);
+          }
+        }
+      );
+    });
+
+    
+    it('finds the one random game to join with Bob', function() {
+      return parseCall("Bob", "findGames", {
+        "limit": 1,
+        "skip": 1,
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          should.not.exist(result.playerCount);
+          result.should.have.property("games");
+          var games = result.games;
+          games.should.have.length(1);
+          var game = games[0];
+          should.exist(game);
+          game.should.have.property("objectId");
+          game.objectId.should.equal(gameInfos[1].game.objectId);
+          gameToJoin.id = game.objectId;
+        }
+      );
+    });
+
+    joinGame("Bob", gameToJoin, "should try joining the found game with Bob");
     joinGame("Bob", gameToJoin, "should not be able to join twice", resultShouldError);
 
   });

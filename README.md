@@ -19,10 +19,10 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 	* [X] ~~*Find a game*~~
 	* [X] ~~*Join game*~~
 	* [X] ~~*Create game if no random exists*~~
-	* [ ] Actually don't create a game and just return failure
-	* [ ] Just return a list of available random games?
-	* [ ] Possible paging via date offset and number limit
-	* [ ] Add the capability of joining into multiple lobbies (it shouldn't try joining in a game it's already in)
+	* [X] ~~*Actually don't create a game and just return failure*~~
+	* [X] ~~*Just return a list of available random games?*~~
+	* [X] ~~*Possible paging via date offset and number limit*~~
+	* [X] ~~*Add the capability of joining into multiple lobbies (it shouldn't try joining in a game it's already in)*~~
 * [X] ~~*Look into Loom integration*~~
 * [X] ~~*Fame card per-card counts*~~
 * [ ] Add end game condition flag on game turn call

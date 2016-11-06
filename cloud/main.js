@@ -168,6 +168,18 @@ Parse.Cloud.define("findGames", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
 
+  var minLimit = 1;
+  var maxLimit = 100;
+  var defaultLimit = 20;
+
+  var limit = Number(req.params.limit);
+  if (isNaN(limit)) limit = defaultLimit;
+  if (limit < minLimit) limit = minLimit;
+  if (limit > maxLimit) limit = maxLimit;
+
+  var skip = Number(req.params.skip);
+  if (isNaN(skip)) skip = 0;
+
   var configQuery = new Query(Config);
   configQuery
     .equalTo("isRandom", true);
@@ -178,6 +190,8 @@ Parse.Cloud.define("findGames", function(req, res) {
     .equalTo("state", GameState.Lobby)
     .addAscending("createdAt")
     .include("config")
+    .limit(limit)
+    .skip(skip)
     .find()
     .then(
       function(games) {
