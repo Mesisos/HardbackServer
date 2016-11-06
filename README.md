@@ -31,8 +31,8 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] Explicit 
 * [X] ~~*Fix maxSlots so it includes AI*~~
 * [ ] Allow start game by creator after timeout as long as two people are in it
-* [ ] Join via link
-	* [ ] Add test to getInvite
+* [X] ~~*Join via link*~~
+	* [X] ~~*Add test to getInvite*~~
 * [ ] Clean up responses so they don't contain too much stuff
 * [ ] Add leaveGame, replace with AI? Game ends if <= 1 person remains?
 * [ ] Index functions to cloud code with master key
