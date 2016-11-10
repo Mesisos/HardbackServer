@@ -1,6 +1,8 @@
-var constants = {
-  INVITE_URL_PREFIX: "http://127.0.0.1:5000/join/"
-};
+process.env.SERVER_ROOT = "http://127.0.0.1:5000";
+
+var constants = require('../cloud/constants.js');
+var GameState = constants.GameState;
+var AIDifficulty = constants.AIDifficulty;
 
 var should = require('chai').should();
 var fs = require('fs');
@@ -22,13 +24,6 @@ var logins = [
   { user: "Dan", pass: "p" }
 ];
 var tokens = {};
-
-var GameState = {
-  Init: 0,
-  Lobby: 1,
-  Running: 2,
-  Ended: 3,
-};
 
 function requestLogin(username, password) {    
   return client({
@@ -66,6 +61,7 @@ function parseCall(username, funcname, payload) {
 }
 
 function entityResult(entity) {
+  if (typeof(entity.error) == 'string') should.not.exist(entity.error);
   if (entity.error) should.not.exist(entity.error.message);
   if (entity.code) should.not.exist(entity.message);
   entity.should.have.property("result");
@@ -134,7 +130,7 @@ function getUserSessions() {
 }
 
 function joinGameCheck(entity) {
-  entity.should.have.deep.property("result.player.objectId");
+  entityResult(entity).should.have.deep.property("player.objectId");
 }
 
 function resultShouldError(result) {
@@ -153,6 +149,48 @@ function joinGame(name, game, desc, playerFunc) {
       }
     );
   });
+}
+
+function internalStartGame(name, game, desc, customFunc, delay) {
+  var timeBuffer = 1;
+  if (!desc) desc = 'has ' + name + ' start the game';
+  it(desc, function() {
+    
+    var promise = new Promise();
+
+    if (delay == 0) {
+      promise.resolve();
+    } else {
+      var relativeDelay = delay - (game.startTime > 0 ? (Date.now() - game.startTime) : 0);
+      this.timeout(2000 + relativeDelay);
+
+      setTimeout(function() {
+        promise.resolve();
+      }, relativeDelay);
+    }
+
+    return promise.then(function() {
+      return parseCall(name, "startGame", {
+        gameId: game.id
+      });
+    }).then(
+      function(entity) {
+        if (customFunc) customFunc(entity);
+        else {
+          joinGameCheck(entity);
+          entityResult(entity).game.state.should.equal(GameState.Running);
+        }
+      }
+    );
+  });
+}
+
+function waitAndStartGame(name, game, desc, customFunc) {
+  internalStartGame(name, game, desc, customFunc, constants.START_GAME_TIMEOUT*1000);
+}
+
+function startGame(name, game, desc, customFunc) {
+  internalStartGame(name, game, desc, customFunc, 0);
 }
 
 function listGames(name, games, desc, testFunc) {
@@ -227,21 +265,21 @@ describe('game flow', function() {
 
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
-        "slotNum": 3,
+        "slotNum": 2,
         "isRandom": false,
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiNum": 1,
+        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 60
       }).then(
         function(entity) {
           game.id = entityGameId(entity);
           var result = entityResult(entity);
           var config = result.game.config;
-          config.slotNum.should.equal(3);
+          config.slotNum.should.equal(2);
           config.isRandom.should.equal(false);
           config.fameCards.should.have.property("The Chinatown Connection");
           config.fameCards["The Chinatown Connection"].should.equal(3);
-          config.aiNum.should.equal(1);
+          config.aiDifficulty.should.equal(0);
           config.turnMaxSec.should.equal(60);
           gameByName.Alice = game.id;
         }
@@ -303,7 +341,7 @@ describe('game flow', function() {
         "slotNum": 4,
         "isRandom": false,
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiNum": 0,
+        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 60
       }).then(
         function(entity) {
@@ -411,7 +449,7 @@ describe('game flow', function() {
         "slotNum": 3,
         "isRandom": true,
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiNum": 0,
+        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 60
       }).then(
         function(entity) {
@@ -532,7 +570,7 @@ describe('game flow', function() {
         "slotNum": 3,
         "isRandom": true,
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiNum": 0,
+        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 60
       }).then(
         function(entity) {
@@ -597,6 +635,56 @@ describe('game flow', function() {
 
 
   });
+
+  describe("start game", function() {
+
+    var game = {};
+    var nonstarterGame = {};
+
+    it('creates a game and gets the game id with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        "slotNum": 3,
+        "isRandom": false,
+        "fameCards": { "The Chinatown Connection": 3 },
+        "aiDifficulty": AIDifficulty.None,
+        "turnMaxSec": 60
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+          game.startTime = Date.now();
+        }
+      );
+    });
+
+    it('creates a game and gets the game id with Bob', function() {
+      return parseCall("Bob", "createGame", {
+        "slotNum": 2,
+        "isRandom": false,
+        "fameCards": { "The Chinatown Connection": 3 },
+        "aiDifficulty": AIDifficulty.None,
+        "turnMaxSec": 60
+      }).then(
+        function(entity) {
+          nonstarterGame.id = entityGameId(entity);
+          nonstarterGame.startTime = Date.now();
+        }
+      );
+    });
+
+    joinGame("Bob", game);
+    
+    startGame("Alice", game, 'should not allow Alice to start the game already', resultShouldError);
+    startGame("Bob", game, 'should not allow Bob to start the game already', resultShouldError);
+    startGame("Bob", nonstarterGame, 'should not allow Bob to start a game with just himself', resultShouldError);
+    
+    waitAndStartGame("Bob", game, 'should not allow a non-creator to start the game', resultShouldError);
+    waitAndStartGame("Alice", game, 'should allow Alice to start the game after the timeout');
+    waitAndStartGame("Bob", game, 'should not allow Bob to start the game after Alice', resultShouldError);
+    waitAndStartGame("Alice", game, 'should not allow Alice to start the game twice', resultShouldError);
+    
+    waitAndStartGame("Bob", nonstarterGame, 'should not allow Bob to start a game with just himself even after timeout', resultShouldError);
+
+  })
 
 
 });
@@ -670,7 +758,7 @@ describe("contacts", function() {
         "slotNum": 4,
         "isRandom": true,
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiNum": 0,
+        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 60
       }).then(
         function(entity) {

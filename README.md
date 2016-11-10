@@ -9,13 +9,13 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [X] ~~*Write script to create db schema*~~
 * [X] ~~*Add beforeSave to avoid duplicate display names*~~
 * [X] ~~*Add contacts on join game*~~
-* [ ] Handle game state
+* [X] ~~*Handle game state*~~
 	* [X] ~~*Init*~~
 	* [X] ~~*Lobby*~~
 	* [X] ~~*Running*~~
 	* [X] ~~*Ended*~~
 * [X] ~~*Go over questions and add missing tasks*~~
-* [ ] Request random game
+* [X] ~~*Request random game*~~
 	* [X] ~~*Find a game*~~
 	* [X] ~~*Join game*~~
 	* [X] ~~*Create game if no random exists*~~
@@ -28,17 +28,17 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] Add end game condition flag on game turn call
 	* [X] ~~*End the game*~~
 	* [ ] Send the save to all players (via push notifications?)
-* [ ] Explicit 
+* [X] ~~*AI difficulty instead of number*~~
 * [X] ~~*Fix maxSlots so it includes AI*~~
-* [ ] Allow start game by creator after timeout as long as two people are in it
+* [X] ~~*Allow start game by creator after timeout as long as two people are in it*~~
 * [X] ~~*Join via link*~~
 	* [X] ~~*Add test to getInvite*~~
-* [ ] Clean up responses so they don't contain too much stuff
-* [ ] Add leaveGame, replace with AI? Game ends if <= 1 person remains?
-* [ ] Index functions to cloud code with master key
 * [ ] Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips
+* [ ] Add leaveGame, replace with AI? Game ends if <= 1 person remains?
 * [ ] Replace defaultError with semantic errors
+* [ ] Index functions to cloud code with master key
 * [ ] Query limits?
+* [ ] Clean up responses so they don't contain too much stuff
 * [ ] Filter returned User objects (listFriends etc.)
 * [ ] Verify parameter validity on saving of all (most? at least Game?) objects
 

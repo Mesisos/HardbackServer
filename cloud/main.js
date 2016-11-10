@@ -1,6 +1,10 @@
 
 var util = require("util");
+var moment = require('moment');
 var constants = require('./constants.js');
+
+GameState = constants.GameState;
+AIDifficulty = constants.AIDifficulty;
 
 var Promise = Parse.Promise;
 var Query = Parse.Query;
@@ -12,19 +16,6 @@ var Player = Parse.Object.extend("Player");
 var Contact = Parse.Object.extend("Contact");
 var Invite = Parse.Object.extend("Invite");
 
-var GameState = {
-    Init: 0,
-    Lobby: 1,
-    Running: 2,
-    Ended: 3,
-
-    getName: function(state) {
-        for (var prop in GameState) {
-        if (GameState[prop] == state) return prop;
-        }
-        return null;
-    }
-};
 
 function defaultError(res) {
   return (function(error) {
@@ -267,7 +258,7 @@ function createConfigFromRandom() {
   config.set("slotNum", 2);
   config.set("isRandom", true);
   config.set("fameCards", {});
-  config.set("aiNum", 0);
+  config.set("aiDifficulty", AIDifficulty.None);
   config.set("turnMaxSec", 60);
   return config.save();
 }
@@ -289,9 +280,9 @@ function createConfigFromRequest(req) {
       }
     }
   }
-  config.set("fameCards", fameCards);
 
-  config.set("aiNum", Number(req.params.aiNum));
+  config.set("fameCards", fameCards);
+  config.set("aiDifficulty", Number(req.params.aiDifficulty));
   config.set("turnMaxSec", Number(req.params.turnMaxSec));
   return config.save();
 }
@@ -410,6 +401,18 @@ function getPlayerCount(game) {
     .count();
 }
 
+function getGameInfo(game, playerCount, player) {
+  return {
+    game: game,
+    playerCount: playerCount,
+    player: player
+  };
+}
+
+function startGame(game) {
+  return game.set("state", GameState.Running).save();
+}
+
 function joinGame(game, user) {
   var player;
   var playerCount;
@@ -438,7 +441,7 @@ function joinGame(game, user) {
       playerCount = c;
       if (initial) return Promise.resolve(game);
       var config = game.get("config");
-      var maxPlayers = config.get("slotNum") - config.get("aiNum");
+      var maxPlayers = config.get("slotNum");
       var promise;
       if (playerCount > maxPlayers) {
         promise = new Promise();
@@ -453,7 +456,7 @@ function joinGame(game, user) {
             }
           );
       } else if (playerCount == maxPlayers) {
-        promise = game.set("state", GameState.Running).save();
+        return startGame(game);
       } else {
         promise = Promise.resolve(game);
       }
@@ -461,11 +464,7 @@ function joinGame(game, user) {
     }
   ).then(
     function(game) {
-      return Promise.resolve({
-        game: game,
-        playerCount: playerCount,
-        player: player
-      });
+      return Promise.resolve(getGameInfo(game, playerCount, player));
     }
   );
 }
@@ -586,6 +585,19 @@ Parse.Cloud.beforeSave(Contact, function(req, res) {
     );
 });
 
+// I never asked for this.
+function augmentGameState(game) {
+  var now = moment();
+  var momentCreated = moment(game.createdAt);
+  game.createdAgo = momentCreated.from(now);
+  game.updatedAgo = moment(game.updatedAt).from(now);
+  var momentStartTimeout = now.subtract(constants.START_GAME_TIMEOUT, "seconds");
+  game.startable =
+    game.state == GameState.Lobby &&
+    momentCreated.isBefore(momentStartTimeout);
+}
+
+
 Parse.Cloud.define("listGames", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
@@ -593,44 +605,93 @@ Parse.Cloud.define("listGames", function(req, res) {
   var gameIds = req.params.gameIds;
   if (!Array.isArray(gameIds)) gameIds = null;
   
-  function findPlayers(user, games) {
-    var playerQuery = new Query(Player);
-    playerQuery.equalTo("user", user);
-    playerQuery.include("game");
-    if (games) playerQuery.containedIn("game", games);
-    playerQuery.limit(1000);
-    playerQuery.find().then(
-      function(players) {
-        var games = players.map(function(player) {
-          return player.get("game");
-        });
-        res.success({
-          "games": games
-        });
-      },
-      defaultError(res)
-    );
-  }
+  var games = !gameIds ? null : gameIds.map(function(gameId) {
+    var game = new Game();
+    game.id = gameId;
+    return game;
+  });
 
-  if (gameIds) {
-    var games = !gameIds ? null : gameIds.map(function(gameId) {
-      var game = new Game();
-      game.id = gameId;
-      return game;
-    });
-    Parse.Object.fetchAll(games).then(
-      function(games) {
-        findPlayers(user, games);
-      },
-      defaultError(res)
-    );
-  } else {
-    findPlayers(user);
-  }
+  var gamesPromise = games ? 
+    Parse.Object.fetchAll(games) : Promise.resolve(null);
+  
+  gamesPromise.then(
+    function(games) {
+      var playerQuery = new Query(Player);
+      playerQuery.equalTo("user", user);
+      playerQuery.include("game");
+      if (games) playerQuery.containedIn("game", games);
+      playerQuery.limit(1000);
+      return playerQuery.find();
+    }
+  ).then(
+    function(players) {
+      var games = players.map(function(player) {
+        var gameJSON = player.get("game").toJSON();
+        augmentGameState(gameJSON);
+        return gameJSON;
+      });
+      res.success({
+        "games": games
+      });
+    },
+    defaultError(res)
+  );
 
 });
 
-
+Parse.Cloud.define("startGame", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+  
+  var gameId = String(req.params.gameId);
+  var gameQuery = new Query(Game);
+  var game;
+  var player;
+  gameQuery
+    .include("config")
+    .equalTo("creator", user)
+    .get(gameId)
+    .then(
+      function(g) {
+        game = g;
+        var playerQuery = new Query(Player);
+        return playerQuery
+          .equalTo("game", game)
+          .equalTo("user", user)
+          .first();
+      }
+    ).then(
+      function(p) {
+        player = p;
+        if (!player) return Promise.reject("Unable to start a third party game.");
+        var gameJSON = game.toJSON();
+        augmentGameState(gameJSON);
+        if (gameJSON.startable) {
+          return startGame(game);
+        } else {
+          return Promise.reject("Unable to start game, invalid state.");
+        }
+      }
+    ).then(
+      function(g) {
+        game = g;
+        if (game) {
+          return getPlayerCount(game);
+        } else {
+          return Promise.reject("Unable to start game.");
+        }
+      }
+    ).then(
+      function(playerCount) {
+        if (playerCount >= 2) {
+          res.success(getGameInfo(game, playerCount, player));
+        } else {
+          res.error("Unable to start game with less than two players.");
+        }
+      },
+      defaultError(res)
+    );
+});
 
 Parse.Cloud.define("deleteFriend", function(req, res) {
   var user = req.user;
