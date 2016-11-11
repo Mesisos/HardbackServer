@@ -25,6 +25,11 @@ module.exports = Object.freeze({
         }
     },
 
+    PlayerState: {
+        Active: 0,
+        Inactive: 1
+    },
+
     AIDifficulty: {
         None:   0,
         Easy:   1,

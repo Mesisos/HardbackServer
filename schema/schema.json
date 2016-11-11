@@ -37,7 +37,8 @@
 	"updatedAt": "date",
 	"createdAt": "date",
 	"game": "*Game",
-	"user": "*_User"
+	"user": "*_User",
+	"state": "number"
 }
 {
 	"_id": "_Session",
@@ -58,7 +59,8 @@
 	"createdAt": "date",
 	"game": "*Game",
 	"turn": "number",
-	"save": "string"
+	"save": "string",
+	"player": "*Player"
 }
 {
 	"_id": "Contact",

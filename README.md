@@ -2,6 +2,13 @@
 
 Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse-server) module on Express.
 
+## Running locally
+
+* `mongo-server.bat` to run the Mongo database server
+* `dashboard.bat` to run the Parse dashboard for database inspection
+* `heroku local` to run the web server locally in a Heroku environment
+* `npm test` to run behavior tests
+
 # TODO
 
 ## Tasks
@@ -33,8 +40,12 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [X] ~~*Allow start game by creator after timeout as long as two people are in it*~~
 * [X] ~~*Join via link*~~
 	* [X] ~~*Add test to getInvite*~~
+* [ ] Leave game
+	* [X] ~~*Inactivates player*~~
+	* [X] ~~*Transitions to next player if leaver was current player*~~
+	* [ ] Game ends if <= 1 person remains?
+* [ ] List turns / get last turn
 * [ ] Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips
-* [ ] Add leaveGame, replace with AI? Game ends if <= 1 person remains?
 * [ ] Replace defaultError with semantic errors
 * [ ] Index functions to cloud code with master key
 * [ ] Query limits?
@@ -72,6 +83,8 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 	* [ ] Which config should it use for the lobby if no game exists? _It should probably just return a game/games instead of joining / creating automatically._
 * [ ] Invite message?
 * [ ] Custom game names / titles?
+* [ ] Can players rejoin a game they left?
+	* [ ] Can anyone else join a game after it starts?
 
 ## Account
 * [ ] Create account

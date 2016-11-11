@@ -151,6 +151,20 @@ function joinGame(name, game, desc, playerFunc) {
   });
 }
 
+function leaveGame(name, game, desc, playerFunc) {
+  if (!desc) desc = 'has ' + name + ' leave game';
+  it(desc, function() {
+    return parseCall(name, "leaveGame", {
+      gameId: game.id
+    }).then(
+      function(entity) {
+        if (playerFunc) playerFunc(entity);
+        else entityResult(entity).left.should.equal(true);
+      }
+    );
+  });
+}
+
 function internalStartGame(name, game, desc, customFunc, delay) {
   var timeBuffer = 1;
   if (!desc) desc = 'has ' + name + ' start the game';
@@ -686,6 +700,56 @@ describe('game flow', function() {
 
   })
 
+
+
+  describe("leave game", function() {
+
+    var game = {};
+    
+    it('creates a game and gets the game id with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        "slotNum": 3,
+        "isRandom": false,
+        "fameCards": { "The Chinatown Connection": 3 },
+        "aiDifficulty": AIDifficulty.None,
+        "turnMaxSec": 60
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+        }
+      );
+    });
+
+    leaveGame("Bob", game, "should not allow Bob to leave a game he's not in", resultShouldError);
+    joinGame("Bob", game);
+    joinGame("Carol", game);
+
+    var turnNumber = 0;
+
+    makeTurn("Bob",   game, "deny", turnNumber);
+    makeTurn("Carol", game, "deny", turnNumber);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Alice", game, "deny", turnNumber);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "deny", turnNumber);
+    makeTurn("Carol", game, "allow", turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Carol", game, "allow", turnNumber++);
+
+    leaveGame("Alice", game);
+    leaveGame("Alice", game, "should not allow Alice to leave the game twice", resultShouldError);
+
+    makeTurn("Alice", game, "deny", turnNumber);
+    makeTurn("Carol", game, "deny", turnNumber);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+
+    joinGame("Alice", game, "should not allow Alice to rejoin", resultShouldError);
+    leaveGame("Bob", game);
+    leaveGame("Bob", game, "should not allow Bob to leave the game twice", resultShouldError);
+    joinGame("Bob", game, "should not allow Bob to rejoin", resultShouldError);
+
+  });
 
 });
 

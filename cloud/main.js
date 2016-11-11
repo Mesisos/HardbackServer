@@ -4,6 +4,7 @@ var moment = require('moment');
 var constants = require('./constants.js');
 
 GameState = constants.GameState;
+PlayerState = constants.PlayerState;
 AIDifficulty = constants.AIDifficulty;
 
 var Promise = Parse.Promise;
@@ -30,6 +31,10 @@ function errorOnInvalidUser(user, res) {
 }
 
 function errorOnInvalidGame(game, res, acceptable) {
+  if (!game) {
+    res.error("Game not found.");
+    return true;
+  }
   var state = game.get("state");
   if (acceptable.indexOf(state) == -1) {
 
@@ -421,6 +426,7 @@ function joinGame(game, user) {
     var player = new Player();
     player.set("game", game);
     player.set("user", user);
+    player.set("state", PlayerState.Active);
     return player.save();
   }
   
@@ -472,21 +478,28 @@ function joinGame(game, user) {
 Parse.Cloud.beforeSave(Player, function(req, res) {
   var player = req.object;
   
-  var query = new Query(Player);
-  query.equalTo("game", player.get("game"));
-  query.equalTo("user", player.get("user"));
-  query.first().then(
-    function(existing) {
-      if (existing) {
-        res.error("Player already in game.");
-      } else {
-        res.success();
+  // Don't allow users to join a game twice in a row
+  if (player.get("state") == PlayerState.Active) {
+    var query = new Query(Player);
+    query.equalTo("game", player.get("game"));
+    query.equalTo("user", player.get("user"));
+    query.equalTo("state", PlayerState.Active);
+    query.first().then(
+      function(existing) {
+        if (existing) {
+          res.error("Player already in game.");
+        } else {
+          res.success();
+        }
+      },
+      function(error) {
+        res.error(error);
       }
-    },
-    function(error) {
-      res.error(error);
-    }
-  );
+    );
+  } else {
+    res.success();
+  }
+
 });
 
 
@@ -501,16 +514,75 @@ Parse.Cloud.define("joinGame", function(req, res) {
     .include("config")
     .get(gameId)
     .then(
-    function(game) {
-      if (errorOnInvalidGame(game, res, [GameState.Lobby])) return;
-      return joinGame(game, user);
-    }
-  ).then(
-    function(gameInfo) {
-      res.success(gameInfo);
-    },
-    defaultError(res)
-  );
+      function(game) {
+        if (errorOnInvalidGame(game, res, [GameState.Lobby])) return;
+        return joinGame(game, user);
+      }
+    ).then(
+      function(gameInfo) {
+        res.success(gameInfo);
+      },
+      defaultError(res)
+    );
+});
+
+
+Parse.Cloud.define("leaveGame", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+  
+  var gameId = String(req.params.gameId);
+  
+  var leaver;
+  var game;
+  var gameQuery = new Query(Game);
+  gameQuery
+    .get(gameId)
+    .then(
+      function(g) {
+        game = g;
+        if (errorOnInvalidGame(game, res, [GameState.Running])) return;
+
+        var query = new Query(Player);
+        return query
+          .equalTo("game", game)
+          .equalTo("user", user)
+          .equalTo("state", PlayerState.Active)
+          .first();
+      }
+    ).then(
+      function(player) {
+        if (!player) return Promise.reject("Unable to leave game, user not in game.");
+        leaver = player;
+        player.set("state", PlayerState.Inactive);
+        return player.save();
+      }
+    ).then(
+      function(player) {
+        if (game.get("currentPlayer").id == player.id) {
+          return findNextPlayer(game);
+        }
+        return Promise.resolve(player);
+      }
+    ).then(
+      function(player) {
+        if (!player) return Promise.reject("Unable to transition to next player.");
+        if (game.get("currentPlayer").id != player.id) {
+          game.set("currentPlayer", player);
+          return game.save();
+        }
+        return Promise.resolve(game);
+      }
+    ).then(
+      function(game) {
+        res.success({
+          left: true,
+          player: leaver
+        });
+      },
+      defaultError(res)
+    );
+
 });
 
 
@@ -798,47 +870,53 @@ Parse.Cloud.define("gameTurn", function(req, res) {
   var gameId = String(req.params.gameId);
   var final = Boolean(req.params.final);
   var query = new Query(Game);
-  query.include("currentPlayer");
-  query.get(gameId).then(
-    function(g) {
-      game = g;
+  query
+    .include("currentPlayer")
+    .get(gameId)
+    .then(
+      function(g) {
+        game = g;
+        if (errorOnInvalidGame(game, res, [GameState.Running])) return;
 
-      if (errorOnInvalidGame(game, res, [GameState.Running])) return;
+        var currentPlayer = game.get("currentPlayer");
+        if (
+          !currentPlayer || 
+          currentPlayer.get("user").id != req.user.id ||
+          currentPlayer.get("state") != PlayerState.Active
+        ) {
+          res.error("Game turn invalid, it's not your turn!");
+          return;
+        }
 
-      var currentPlayer = game.get("currentPlayer");
-      if (!currentPlayer || currentPlayer.get("user").id != req.user.id) {
-        res.error("Game turn invalid, it's not your turn!");
-        return;
+        var save = String(req.params.state);
+        // TODO: validate
+        // TODO: notify
+
+        var turn = new Turn();
+        turn.set("game", game);
+        turn.set("save", save);
+        turn.set("player", currentPlayer);
+        return turn.save();
+
       }
-
-      var save = String(req.params.state);
-      // TODO: validate
-      // TODO: notify
-
-      var turn = new Turn();
-      turn.set("game", game);
-      turn.set("save", save);
-      return turn.save();
-
-    }
-  ).then(
-    function(turn) {
-      if (final) {
-        game.set("state", GameState.Ended);
-        return game.save();
-      } else {
-        return Promise.resolve(game);
+    ).then(
+      function(turn) {
+        if (final) {
+          game.set("state", GameState.Ended);
+          return game.save();
+        } else {
+          return Promise.resolve(game);
+        }
       }
-    }
-  ).then(
-    function(game) {
-      res.success({
-        saved: true,
-        ended: final
-      });
-    },
-    defaultError(res)
-  );
+    ).then(
+      function(game) {
+        res.success({
+          saved: true,
+          ended: final
+        });
+      },
+      defaultError(res)
+    );
 });
 
 Parse.Cloud.beforeSave(Turn, function(req, res) {
@@ -891,6 +969,7 @@ function findNextPlayer(game) {
     var query = new Query(Player);
     query.notEqualTo("objectId", currentPlayer.id);
     query.equalTo("game", game);
+    query.equalTo("state", PlayerState.Active);
     query.addAscending("createdAt");
     return query;
   }
