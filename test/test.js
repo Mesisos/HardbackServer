@@ -133,8 +133,8 @@ function joinGameCheck(entity) {
   entityResult(entity).should.have.deep.property("player.objectId");
 }
 
-function resultShouldError(result) {
-  result.should.have.deep.property("error");
+function resultShouldError(entity) {
+  entity.should.have.deep.property("error");
 }
 
 function joinGame(name, game, desc, playerFunc) {
@@ -172,7 +172,7 @@ function internalStartGame(name, game, desc, customFunc, delay) {
     
     var promise = new Promise();
 
-    if (delay == 0) {
+    if (delay === 0) {
       promise.resolve();
     } else {
       var relativeDelay = delay - (game.startTime > 0 ? (Date.now() - game.startTime) : 0);
@@ -366,16 +366,89 @@ describe('game flow', function() {
 
     var turnNumber = 0;
 
-    makeTurn("Bob",   game, "deny",  turnNumber++);
+    makeTurn("Bob",   game, "deny",  turnNumber);
     makeTurn("Alice", game, "allow", turnNumber++);
-    makeTurn("Alice", game, "deny",  turnNumber++);
+    makeTurn("Alice", game, "deny",  turnNumber);
     makeTurn("Bob",   game, "allow", turnNumber++);
-    makeTurn("Bob",   game, "deny",  turnNumber++);
-    makeTurn("Alice", game, "allow", turnNumber++);
-    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "deny",  turnNumber);
     makeTurn("Alice", game, "allow", turnNumber++);
     makeTurn("Bob",   game, "allow", turnNumber++);
-    makeTurn("Bob",   game, "deny",  turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "deny",  turnNumber);
+
+    
+    it('denies listing of turns by Carol', function() {
+      return parseCall("Carol", "listTurns", {
+        gameId: game.id,
+        limit: 100,
+        skip: 0
+      }).then(
+        function(entity) {
+          resultShouldError(entity);
+        }
+      );
+    });
+
+    it('gets the latest turn with Alice', function() {
+      return parseCall("Alice", "listTurns", {
+        gameId: game.id,
+        limit: 1
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("turns");
+          result.turns.should.have.length(1);
+          var turn = result.turns[0];
+          turn.turn.should.equal(5);
+          turn.save.should.equal("turn 5");
+          turn.player.user.username.should.equal("Bob");
+        }
+      );
+    });
+
+    it('gets two turns in the middle with Alice', function() {
+      return parseCall("Alice", "listTurns", {
+        gameId: game.id,
+        limit: 2,
+        skip: 1
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("turns");
+          result.turns.should.have.length(2);
+
+          var turnAlice = result.turns[0];
+          turnAlice.player.user.username.should.equal("Alice");
+          turnAlice.turn.should.equal(4);
+
+          var turnBob = result.turns[1];
+          turnBob.player.user.username.should.equal("Bob");
+          turnBob.turn.should.equal(3);
+        }
+      );
+    });
+
+
+    it('gets a valid list of all turns with Bob', function() {
+      return parseCall("Bob", "listTurns", {
+        gameId: game.id,
+        limit: 100,
+        skip: 0
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("turns");
+          result.turns.forEach(function(turn) {
+            turn.save.should.equal("turn " + turn.turn);
+            turn.player.user.username.should.equal(
+              turn.turn%2 == 0 ? "Alice" : "Bob"
+            );
+          }, this);
+        }
+      );
+    });
+
 
     getGame("Bob", game, '', function(game) {
       game.state.should.equal(GameState.Running);
@@ -698,7 +771,7 @@ describe('game flow', function() {
     
     waitAndStartGame("Bob", nonstarterGame, 'should not allow Bob to start a game with just himself even after timeout', resultShouldError);
 
-  })
+  });
 
 
 

@@ -765,6 +765,59 @@ Parse.Cloud.define("startGame", function(req, res) {
     );
 });
 
+Parse.Cloud.define("listTurns", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+  
+  var minLimit = 1;
+  var maxLimit = 100;
+  var defaultLimit = 3;
+
+  var limit = Number(req.params.limit);
+  if (isNaN(limit)) limit = defaultLimit;
+  if (limit < minLimit) limit = minLimit;
+  if (limit > maxLimit) limit = maxLimit;
+
+  var skip = Number(req.params.skip);
+  if (isNaN(skip)) skip = 0;
+
+  var gameId = String(req.params.gameId);
+  var gameQuery = new Query(Game);
+  gameQuery
+    .get(gameId)
+    .then(
+      function(g) {
+        game = g;
+        var playerQuery = new Query(Player);
+        return playerQuery
+          .equalTo("game", game)
+          .equalTo("user", user)
+          .first();
+      }
+    ).then(
+      function(player) {
+        if (!player) return Promise.reject("Unable to list third party turns.");
+        if (errorOnInvalidGame(game, res, [GameState.Running, GameState.Ended])) return;
+        var query = new Query(Turn);
+        return query
+          .equalTo("game", game)
+          .include("player.user")
+          .addDescending("createdAt")
+          .limit(limit)
+          .skip(skip)
+          .find();
+      }
+    ).then(
+      function(turns) {
+        if (!turns) return Promise.reject("No turns found.");
+        res.success({
+          turns: turns
+        });
+      },
+      defaultError(res)
+    );
+});
+
 Parse.Cloud.define("deleteFriend", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;

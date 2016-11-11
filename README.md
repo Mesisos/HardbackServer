@@ -44,7 +44,7 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 	* [X] ~~*Inactivates player*~~
 	* [X] ~~*Transitions to next player if leaver was current player*~~
 	* [ ] Game ends if <= 1 person remains?
-* [ ] List turns / get last turn
+* [X] ~~*List turns / get last turn*~~
 * [ ] Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips
 * [ ] Replace defaultError with semantic errors
 * [ ] Index functions to cloud code with master key
@@ -52,6 +52,7 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] Clean up responses so they don't contain too much stuff
 * [ ] Filter returned User objects (listFriends etc.)
 * [ ] Verify parameter validity on saving of all (most? at least Game?) objects
+* [ ] Analyze performance and add Mongo indexes if necessary/possible
 
 ### Someday
 * [ ] Blocking of friends?
