@@ -122,6 +122,24 @@ All of the returned responses are wrapped in a `result` object if successful, ot
 
 All of the cloud functions below require you to be logged in as a user.
 
+## Enums
+
+### Game State
+```
+0 -> Init
+1 -> Lobby
+2 -> Running
+3 -> Ended
+```
+
+### AI Difficulty
+```
+0 -> None
+1 -> Easy
+2 -> Medium
+3 -> Hard
+```
+
 
 ## `checkNameFree`
 ### Request
@@ -152,7 +170,7 @@ All of the cloud functions below require you to be logged in as a user.
 		"Vicious Triangle": 3,
 		"Lady of the West": 1
 	},
-	"aiNum": 2,
+	"aiDifficulty": 0|1|2|3,
 
 	// Doesn't do anything right now
 	"turnMaxSec": 60
@@ -184,6 +202,25 @@ All of the cloud functions below require you to be logged in as a user.
 ```
 
 
+## `getInvite`
+### Request
+```
+{
+	"gameId": "id"
+}
+```
+### Response
+```
+{
+	"link": "url of the invite website",
+	"invite": {
+		"inviter": {...}, // Your Player object
+		"objectId": "id"
+	}
+}
+```
+
+
 ## `joinGame`
 ### Request
 ```
@@ -202,7 +239,36 @@ All of the cloud functions below require you to be logged in as a user.
 ```
 
 
-## `requestGame`
+## `leaveGame`
+### Request
+```
+{
+	"gameId": "id"
+}
+```
+### Response
+```
+{
+	"left": true
+}
+```
+
+
+## `findGames`
+### Request
+```
+{}
+```
+### Response
+```
+{
+	// Game objects with `isRandom` being `true`
+	"games": [...]
+}
+```
+
+
+## `requestGame` (deprecated)
 ### Request
 ```
 {}
@@ -300,6 +366,39 @@ All of the cloud functions below require you to be logged in as a user.
 	"ended": true|false
 }
 ```
+
+
+## `listTurns`
+### Request
+```
+{
+	"gameId": "id",
+	// How many turns to return sorted by most recent first
+	"limit": integer (default 3)
+	// How many turns to skip (for pagination)
+	"skip": integer (default 0)
+}
+```
+### Response
+```
+{
+	"turns": [
+		{
+			// Player object (with a User)
+			"player": {...}
+			// Turn index
+			"turn": integer
+		},
+		{
+			"player": {...}
+			"turn": integer
+		},
+		...
+	]
+}
+```
+
+
 
 
 
