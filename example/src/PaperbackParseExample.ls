@@ -20,6 +20,7 @@ package
     import feathers.events.FeathersEventType;
 
     import loom.social.Parse;
+    import loom.platform.Mobile;
 
     enum GameState {
         Init,
@@ -36,12 +37,17 @@ package
 
         override public function run():void
         {
-            Parse.baseServerURL = "https://paperback.herokuapp.com/parse/";
 
-            //Get REST credentials from loom.config file and pass to Parse
-            var config = new JSON();
-            config.loadString(Application.loomConfigJSON);
-            Parse.REST_setCredentials(config.getString("parse_app_id"));
+            trace("Running from remote notification:", Mobile.wasOpenedViaRemoteNotification(), Mobile.getRemoteNotificationData("alert"));
+
+            Mobile.onOpenedViaRemoteNotification += function() {
+                var notificationData = Mobile.getRemoteNotificationData("data");
+                var json = JSON.parse(notificationData);
+                trace("Opened via remote notification:", Mobile.getRemoteNotificationData("alert"));
+                trace(json.serialize());
+            };
+
+            Parse.initialize();
 
             //Set our onTimeout delegate. This will trigger after 10 seconds (by default) without a server response.
             Parse.REST_onTimeout = function()
@@ -49,7 +55,18 @@ package
                 trace("Timed out");
             };
 
-            loginUser("Alice", "p", createGame);
+            var username = "Alice";
+
+            trace("Parse active: " + Parse.isActive());
+            if(Parse.isActive())
+            {
+                var updated = Parse.updateInstallationUserID(username);
+                trace("Installation user ID updated: " + updated);
+                trace("Installation ID: " + Parse.getInstallationID());
+                trace("Installation Object ID: " + Parse.getInstallationObjectID());
+            }
+
+            loginUser(username, "p", createGame);
         }
 
         private function printGameResponse(result:JSON)
@@ -143,10 +160,10 @@ package
 
                     done();
                 },
-                function(result:String) //request failure delegate
+                function(result:ByteArray) //request failure delegate
                 {
                     trace("Login failed:");
-                    trace(result);
+                    trace(result.toString());
                 }
             );
         }

@@ -23,6 +23,12 @@ var serverConfig = {
   appId: process.env.APP_ID,
   masterKey: process.env.MASTER_KEY, //Add your master key here. Keep it secret!
   serverURL: process.env.SERVER_ROOT + process.env.PARSE_MOUNT,  // Don't forget to change to https if needed
+  push: {
+    android: {
+      senderId: process.env.ANDROID_SENDER_ID,
+      apiKey: process.env.ANDROID_API_KEY
+    }
+  },
   liveQuery: {
     classNames: [] // List of classes to support for query subscriptions
   }
@@ -157,8 +163,39 @@ if (process.env.TESTING === "true") {
 
   });
 
-}
+  app.get('/testPush', function(req, res) {
+        
+    var userQuery = new Parse.Query(Parse.Object.extend("User"));
+    userQuery
+      .equalTo("username", "Bob")
 
+    var sessionQuery = new Parse.Query(Parse.Session);
+    sessionQuery
+      .matchesQuery("user", userQuery)
+    
+    var installationQuery = new Parse.Query(Parse.Installation);
+    installationQuery
+      .matchesKeyInQuery("installationId", "installationId", sessionQuery)
+    
+    Parse.Push.send({
+      where: installationQuery,
+      data: {
+        "alert": "This has extra stuff!",
+        "data": { "name": "extra stuff" }
+      }
+    }, { useMasterKey: true })
+    .then(
+        function() {
+          res.status(200).send("Pushed!");
+        },
+        function(error) {
+          res.status(500).send(error);
+        }
+    );
+
+  });
+
+}
 
 
 // })

@@ -77,3 +77,24 @@
 	"createdAt": "date",
 	"inviter": "*Player"
 }
+{
+	"_id": "_Installation",
+	"objectId": "string",
+	"updatedAt": "date",
+	"createdAt": "date",
+	"installationId": "string",
+	"deviceToken": "string",
+	"channels": "array",
+	"deviceType": "string",
+	"pushType": "string",
+	"GCMSenderId": "string",
+	"timeZone": "string",
+	"localeIdentifier": "string",
+	"badge": "number",
+	"appVersion": "string",
+	"appName": "string",
+	"appIdentifier": "string",
+	"parseVersion": "string",
+	"UniqueId": "string",
+	"userId": "string"
+}

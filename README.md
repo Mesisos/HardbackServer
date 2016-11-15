@@ -45,6 +45,10 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 	* [X] ~~*Transitions to next player if leaver was current player*~~
 	* [ ] Game ends if <= 1 person remains?
 * [X] ~~*List turns / get last turn*~~
+* [ ] Setup push notifications
+	* [X] ~~*Android*~~
+	* [ ] iOS
+* [ ] Add tasks for all the push notifications needed
 * [ ] Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips
 * [ ] Replace defaultError with semantic errors
 * [ ] Index functions to cloud code with master key
