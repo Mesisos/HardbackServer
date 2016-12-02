@@ -3,11 +3,13 @@ package
     import loom.Application;
     import loom2d.display.StageScaleMode;
     import loom2d.display.Image;
+    import loom2d.display.Quad;
     import loom2d.textures.Texture;    
     import loom2d.events.Event;
     import loom2d.events.Touch;
     import loom2d.events.TouchEvent;
     import loom2d.events.TouchPhase;
+    import loom2d.Loom2D;
     import system.ByteArray;
 
     import loom2d.text.TextField;    
@@ -32,11 +34,15 @@ package
     public class PaperbackParseExample extends Application
     {
         var sessionToken:String;
+        var quad:Quad;
 
         var gameId:String;
 
         override public function run():void
         {
+
+            quad = new Quad(50, 50, 0x00FF00);
+            stage.addChild(quad);
 
             trace("Running from remote notification:", Mobile.wasOpenedViaRemoteNotification(), Mobile.getRemoteNotificationData("alert"));
 
@@ -72,6 +78,8 @@ package
         private function printGameResponse(result:JSON)
         {
             if (!result) return;
+
+            // trace("Game JSON:", result.serialize());
 
             var game:JSON = result.getValue("game") as JSON;
             gameId = game.getValue("objectId") as String;
@@ -135,6 +143,10 @@ package
 
             //tick Parse so that it can handle timeouts
             Parse.tick();
+
+            var f = (Math.sin(Loom2D.juggler.elapsedTime * 2) + 1) * 0.5;
+            quad.x = f * stage.stageWidth;
+            quad.y = f * stage.stageHeight;
         }
 
         public function loginUser(username:String, password:String, done:Function)

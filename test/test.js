@@ -1,4 +1,5 @@
 process.env.SERVER_ROOT = "http://127.0.0.1:5000";
+// process.env.SERVER_ROOT = "http://paperback.herokuapp.com";
 
 var constants = require('../cloud/constants.js');
 var GameState = constants.GameState;
@@ -12,7 +13,7 @@ var Parse = require('parse/node');
 var Promise = Parse.Promise;
 var client = rest.wrap(mime);
 
-var urlRoot = "http://localhost:5000/";
+var urlRoot = process.env.SERVER_ROOT + "/";
 var urlParse = urlRoot + "parse/";
 var appId = "pbserver";
 var masterKey = "12345";
@@ -634,92 +635,6 @@ describe('game flow', function() {
 
     joinGame("Bob", gameToJoin, "should try joining the found game with Bob");
     joinGame("Bob", gameToJoin, "should not be able to join twice", resultShouldError);
-
-  });
-
-  describe('request game', function() {
-
-    var game = {};
-
-    it('should remove random games first', function() {
-      return client({
-        path: urlRoot + "purgeRandomGames",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Parse-Application-Id": appId,
-          "X-Parse-Master-Key": masterKey
-        }
-      });
-    });
-
-    it('should create a random game and get the game id with Alice', function() {
-      return parseCall("Alice", "createGame", {
-        "slotNum": 3,
-        "isRandom": true,
-        "fameCards": { "The Chinatown Connection": 3 },
-        "aiDifficulty": AIDifficulty.None,
-        "turnMaxSec": 60
-      }).then(
-        function(entity) {
-          game.id = entityGameId(entity);
-        }
-      );
-    });
-
-    
-    it('requests a random game with Bob', function() {
-      return parseCall("Bob", "requestGame", {
-      }).then(
-        function(entity) {
-          var result = entityResult(entity);
-          result.playerCount.should.equal(2);
-          result.should.have.property("game");
-          var randomGame = result.game;
-          randomGame.config.isRandom.should.equal(true);
-          randomGame.state.should.equal(GameState.Lobby);
-          randomGame.objectId.should.equal(game.id);
-        }
-      );
-    });
-
-    joinGame("Bob", game, "should auto-join Bob into the game", resultShouldError);
-
-    it('starts the game by requesting a random game with Carol', function() {
-      return parseCall("Carol", "requestGame", {
-      }).then(
-        function(entity) {
-          var result = entityResult(entity);
-          result.playerCount.should.equal(3);
-          result.should.have.property("game");
-          var randomGame = result.game;
-          randomGame.config.isRandom.should.equal(true);
-          randomGame.state.should.equal(GameState.Running);
-          randomGame.objectId.should.equal(game.id);
-        }
-      );
-    });
-
-    joinGame("Carol", game, "should auto-join Carol into the game", resultShouldError);
-
-    it('creates a new game by requesting a random game with Dan', function() {
-      return parseCall("Dan", "requestGame", {
-      }).then(
-        function(entity) {
-          var result = entityResult(entity);
-          result.should.have.property("playerCount");
-          result.playerCount.should.equal(1);
-          result.should.have.deep.property("player.user.username");
-          result.player.user.username.should.equal("Dan");
-
-          result.should.have.property("game");
-          var randomGame = result.game;
-          randomGame.config.isRandom.should.equal(true);
-          randomGame.state.should.equal(GameState.Lobby);
-          randomGame.objectId.should.not.equal(game.id);
-        }
-      );
-    });
-
 
   });
 

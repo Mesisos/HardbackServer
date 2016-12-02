@@ -168,47 +168,6 @@ Parse.Cloud.define("getInvite", function(req, res) {
   
 });
 
-Parse.Cloud.define("requestGame", function(req, res) {
-  var user = req.user;
-  if (errorOnInvalidUser(user, res)) return;
-
-  var configQuery = new Query(Config);
-  configQuery
-    .equalTo("isRandom", true);
-  
-  var query = new Query(Game);
-  query
-    .matchesQuery("config", configQuery)
-    .equalTo("state", GameState.Lobby)
-    .addAscending("createdAt")
-    .include("config")
-    .first()
-    .then(
-      function(game) {
-        if (game) {
-          return joinGame(game, user);
-        } else {
-          return createConfigFromRandom().then(
-            function(config) {
-              return createGameFromConfig(user, config);
-            }
-          );
-        }
-      }
-    ).then(
-      function(gameInfo) {
-        if (gameInfo) {
-          res.success(gameInfo);
-        } else {
-          res.error("Unable to join a random game.");
-        }
-      },
-      defaultError(res)
-    );
-
-});
-
-
 Parse.Cloud.define("findGames", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
@@ -408,14 +367,61 @@ function getPlayerCount(game) {
 
 function getGameInfo(game, playerCount, player) {
   return {
-    game: game,
+    game: augmentGameState(game.toJSON()),
     playerCount: playerCount,
     player: player
   };
 }
 
+function notifyPlayers(players, data) {
+  users = players.map(function(player) {
+    return player.get("user");
+  });
+
+  var sessionQuery = new Query(Parse.Session);
+  sessionQuery
+    .containedIn("user", users)
+
+  var installationQuery = new Query(Parse.Installation);
+  installationQuery.matchesKeyInQuery("installationId", "installationId", sessionQuery);
+
+  return Parse.Push.send({
+    where: installationQuery,
+    data: data
+  }, { useMasterKey: true });
+}
+
+function notifyGame(game, data) {
+  var playerQuery = new Query(Player);
+  return playerQuery
+    .equalTo("game", game)
+    .find()
+    .then(
+      function(players) {
+        return notifyPlayers(players, data);
+      }
+    );
+}
+
+
 function startGame(game) {
-  return game.set("state", GameState.Running).save();
+  return game.set("state", GameState.Running)
+    .save()
+    .then(
+      function(g) {
+        game = g;
+        return notifyGame(game, {
+          alert: "Game '" + game.id + "' has started!",
+          data: {
+            game: augmentGameState(game.toJSON())
+          }
+        });
+      }
+    ).then(
+      function() {
+        return Promise.resolve(game)
+      }
+    );
 }
 
 function joinGame(game, user) {
@@ -462,7 +468,7 @@ function joinGame(game, user) {
             }
           );
       } else if (playerCount == maxPlayers) {
-        return startGame(game);
+        promise = startGame(game);
       } else {
         promise = Promise.resolve(game);
       }
@@ -667,6 +673,7 @@ function augmentGameState(game) {
   game.startable =
     game.state == GameState.Lobby &&
     momentCreated.isBefore(momentStartTimeout);
+  return game;
 }
 
 
@@ -698,9 +705,7 @@ Parse.Cloud.define("listGames", function(req, res) {
   ).then(
     function(players) {
       var games = players.map(function(player) {
-        var gameJSON = player.get("game").toJSON();
-        augmentGameState(gameJSON);
-        return gameJSON;
+        return augmentGameState(player.get("game").toJSON());
       });
       res.success({
         "games": games

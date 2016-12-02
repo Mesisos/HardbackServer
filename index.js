@@ -29,6 +29,21 @@ var serverConfig = {
       apiKey: process.env.ANDROID_API_KEY
     }
   },
+  enableAnonymousUsers: false,
+  allowClientClassCreation: false,
+  verifyUserEmails: true,
+  emailVerifyTokenValidityDuration: 2*60*60, // Expires in 2 hours
+  preventLoginWithUnverifiedEmail: true,
+  publicServerURL: process.env.SERVER_ROOT + process.env.PARSE_MOUNT,
+  appName: process.env.APP_NAME,
+  emailAdapter: {
+    module: 'parse-server-simple-mailgun-adapter',
+    options: {
+      fromAddress: process.env.VERIFICATION_EMAIL_SENDER,
+      domain: process.env.MAILGUN_DOMAIN,
+      apiKey: process.env.MAILGUN_API_KEY
+    }
+  },
   liveQuery: {
     classNames: [] // List of classes to support for query subscriptions
   }

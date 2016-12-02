@@ -48,7 +48,13 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] Setup push notifications
 	* [X] ~~*Android*~~
 	* [ ] iOS
-* [ ] Add tasks for all the push notifications needed
+* [ ] Push notifications for events
+	* [X] ~~*Start game (after `joinGame` or `startGame`): send the game state to all players*~~
+	* [ ] Game turn: send the turn to the next player
+	* [ ] On/near game start timeout?
+	* [ ] On/near turn timeout?
+	* [ ] Join game?
+	* [ ] Leave game?
 * [ ] Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips
 * [ ] Replace defaultError with semantic errors
 * [ ] Index functions to cloud code with master key
@@ -56,6 +62,7 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] Clean up responses so they don't contain too much stuff
 * [ ] Filter returned User objects (listFriends etc.)
 * [ ] Verify parameter validity on saving of all (most? at least Game?) objects
+	* [ ] beforeSave User?
 * [ ] Analyze performance and add Mongo indexes if necessary/possible
 
 ### Someday
@@ -83,7 +90,7 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [X] Does max slots include AI number or not? _It does!_
 * [ ] Does the game end if < 2 people remain after players leave?
 	_If there is only one human left, the game should still send it to the last player - and then the client can ask if they want to continue the game, and if they do, can just continue it as a solo game until it's finished, and then send the result to the server..._
-* [ ] Request game
+* [ ] ~~*Request game*~~ _Replaced by findGames_
 	* [ ] Does request game search with specific config? _Probably with a limited set._
 	* [ ] Which config should it use for the lobby if no game exists? _It should probably just return a game/games instead of joining / creating automatically._
 * [ ] Invite message?
@@ -92,17 +99,18 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 	* [ ] Can anyone else join a game after it starts?
 
 ## Account
-* [ ] Create account
+* [X] ~~*Create account*~~
 * [X] ~~*Display name*~~
-* [ ] Setup email verification
-* [ ] Login
-* [ ] Setup password recovery
+* [X] Setup email verification
+* [X] Login
+* [X] Setup password recovery
 * [ ] Track user devices?
 * [ ] Obscene name filter? **beforeSave?**
 
 ## Ranking?
 
 ## Security
+* [ ] HTTPS!
 * [ ] Input validation
 * [ ] Access security
 
@@ -118,9 +126,43 @@ All of the returned responses are wrapped in a `result` object if successful, ot
 }
 ```
 
+## Sign up with username via `REST_signupWithUsername`
+### Request parameters
+```
+{
+  "username": "Signuper",
+  "password": "password",
+  "displayName": "Signey",
+  "email": "test@example.com"
+}
+```
+### Response
+```
+{
+	"objectId": "wL3sIcT2NA",
+	"createdAt": "2016-11-17T15:02:16.447Z",
+	"sessionToken": "r:31ba286ce8adbee3aa938f79d99d0cdc"
+}
+```
+
+
+## Reset password via `REST_requestPasswordReset`
+### Request parameters
+```
+{
+  "email": "test@example.com"
+}
+```
+### Response
+```
+// Empty on success (sends password reset email)
+{}
+```
+
+
 ## Login
 
-All of the cloud functions below require you to be logged in as a user.
+All of the cloud functions below require you to be logged in as a user. Email verification is required before first login.
 
 ## Enums
 
