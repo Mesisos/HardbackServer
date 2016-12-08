@@ -10,6 +10,7 @@ var ParseServer = require('parse-server').ParseServer;
 var path = require('path');
 var util = require('util');
 var humanTime = require('human-time');
+var kue = require('kue')
 
 var databaseUri = process.env.DATABASE_URI || process.env.MONGODB_URI;
 
@@ -43,9 +44,6 @@ var serverConfig = {
       domain: process.env.MAILGUN_DOMAIN,
       apiKey: process.env.MAILGUN_API_KEY
     }
-  },
-  liveQuery: {
-    classNames: [] // List of classes to support for query subscriptions
   }
 };
 
@@ -99,9 +97,12 @@ app.get('/join/:inviteId', function(req, res) {
     );
 });
 
-
 if (process.env.TESTING === "true") {
-    
+
+  // Start the kue job queue UI
+  kue.app.listen(3000);
+  console.log('kue UI started on port 3000');
+
   app.get('/createAccount', function(req, res) {
     var user = new Parse.User();
     user.set("username", req.query.user);
@@ -223,5 +224,3 @@ httpServer.listen(port, function() {
     console.log('pbserver running on port ' + port + '.');
 });
 
-// This will enable the Live Query real-time server
-ParseServer.createLiveQueryServer(httpServer);

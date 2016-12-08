@@ -53,8 +53,6 @@ package
                 trace(json.serialize());
             };
 
-            Parse.initialize();
-
             //Set our onTimeout delegate. This will trigger after 10 seconds (by default) without a server response.
             Parse.REST_onTimeout = function()
             {
@@ -140,9 +138,6 @@ package
         override public function onTick():void
         {            
             super.onTick();
-
-            //tick Parse so that it can handle timeouts
-            Parse.tick();
 
             var f = (Math.sin(Loom2D.juggler.elapsedTime * 2) + 1) * 0.5;
             quad.x = f * stage.stageWidth;

@@ -37,7 +37,8 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 	* [ ] Send the save to all players (via push notifications?)
 * [X] ~~*AI difficulty instead of number*~~
 * [X] ~~*Fix maxSlots so it includes AI*~~
-* [X] ~~*Allow start game by creator after timeout as long as two people are in it*~~
+* [X] ~~*Allow start game by creator after manual timeout as long as two people are in it*~~
+	* [X] ~~*Game starts automatically after the auto timeout (or ends if it has less than 2 players in it)*~~
 * [X] ~~*Join via link*~~
 	* [X] ~~*Add test to getInvite*~~
 * [ ] Leave game
@@ -50,16 +51,18 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 	* [ ] iOS
 * [ ] Push notifications for events
 	* [X] ~~*Start game (after `joinGame` or `startGame`): send the game state to all players*~~
-	* [ ] Game turn: send the turn to the next player
+	* [X] ~~*Game turn: send the turn to the next player*~~
+	* [ ] Final game turn to all the players
+	* [ ] Add push notification expiration dates
 	* [ ] On/near game start timeout?
 	* [ ] On/near turn timeout?
 	* [ ] Join game?
 	* [ ] Leave game?
 * [ ] Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips
+* [ ] Clean up responses so they don't contain too much stuff
 * [ ] Replace defaultError with semantic errors
 * [ ] Index functions to cloud code with master key
 * [ ] Query limits?
-* [ ] Clean up responses so they don't contain too much stuff
 * [ ] Filter returned User objects (listFriends etc.)
 * [ ] Verify parameter validity on saving of all (most? at least Game?) objects
 	* [ ] beforeSave User?
@@ -97,6 +100,7 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] Custom game names / titles?
 * [ ] Can players rejoin a game they left?
 	* [ ] Can anyone else join a game after it starts?
+* [ ] Should display name be unique? If it's like steam, it can be whatever and the username is what really matters. Look into checkDisplayName if it should be changed/extended.
 
 ## Account
 * [X] ~~*Create account*~~

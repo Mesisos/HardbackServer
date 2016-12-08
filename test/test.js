@@ -10,8 +10,10 @@ var fs = require('fs');
 var rest = require('rest');
 var mime = require('rest/interceptor/mime');
 var Parse = require('parse/node');
+var kue = require('kue');
 var Promise = Parse.Promise;
 var client = rest.wrap(mime);
+var jobs = kue.createQueue();
 
 var urlRoot = process.env.SERVER_ROOT + "/";
 var urlParse = urlRoot + "parse/";
@@ -201,7 +203,7 @@ function internalStartGame(name, game, desc, customFunc, delay) {
 }
 
 function waitAndStartGame(name, game, desc, customFunc) {
-  internalStartGame(name, game, desc, customFunc, constants.START_GAME_TIMEOUT*1000);
+  internalStartGame(name, game, desc, customFunc, constants.START_GAME_MANUAL_TIMEOUT*1000);
 }
 
 function startGame(name, game, desc, customFunc) {
@@ -289,6 +291,8 @@ describe('game flow', function() {
         function(entity) {
           game.id = entityGameId(entity);
           var result = entityResult(entity);
+          result.game.state.should.equal(GameState.Lobby);
+
           var config = result.game.config;
           config.slotNum.should.equal(2);
           config.isRandom.should.equal(false);
@@ -846,4 +850,135 @@ describe("contacts", function() {
     contactCheck("Carol", "should make sure Carol hates Bob now", ["Alice"], ["Bob", "Carol", "Dan"]);
 
   });
+});
+
+
+describe("kue", function() {
+  before(getUserSessions);
+
+  
+  describe("lobby timeout job", function() {
+
+    var game = {};
+
+    it('creates a game and waits for timeout with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        "slotNum": 2,
+        "isRandom": false,
+        "fameCards": {},
+        "aiDifficulty": AIDifficulty.None,
+        "turnMaxSec": 60
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+          var result = entityResult(entity);
+        }
+      );
+    });
+    
+    it('should end the game after timeout', function() {
+      
+      var promise = new Promise();
+
+      setTimeout(function() {
+       promise.resolve();
+      }, constants.START_GAME_AUTO_TIMEOUT*1000 + 1000);
+
+      this.timeout(constants.START_GAME_AUTO_TIMEOUT*1000 + 2000);
+
+      return promise.then(
+        function() {
+          return parseCall("Alice", "listGames", {
+            gameIds: [game.id]  
+          })
+        }
+      ).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("games");
+          result.games.should.be.an("array");
+          result.games.should.have.length(1);
+
+          var game = result.games[0];
+          game.state.should.equal(GameState.Ended);
+          return Promise.resolve();
+        }
+      );
+    })
+
+  });
+
+  
+  describe("lobby timeout skipped job", function() {
+
+    var game = {};
+
+    it('creates a game and gets the game id with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        "slotNum": 2,
+        "isRandom": false,
+        "fameCards": {},
+        "aiDifficulty": AIDifficulty.None,
+        "turnMaxSec": 60
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+          var result = entityResult(entity);
+        }
+      );
+    });
+    joinGame("Bob", game);
+
+    it("should get deleted after game starts", function() {
+
+      return parseCall("Alice", "listGames", {
+        gameIds: [game.id]  
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("games");
+          result.games.should.be.an("array");
+          result.games.should.have.length(1);
+          
+          var promise = new Promise();
+
+          var timeoutJob = result.games[0].lobbyTimeoutJob;
+          kue.Job.get(timeoutJob, function(err, job) {
+            if (err) {
+              promise.resolve();
+              return;
+            }
+            promise.reject(new Error("Job was found, but it should've been deleted: " + job.id));
+          });
+
+          return promise;
+        }
+      );
+    });
+  });
+
+  describe("turn timeout job", function() {
+
+    var turnMaxSec = 3;
+    var game = {};
+
+    it('creates a game with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        "slotNum": 2,
+        "isRandom": false,
+        "turnMaxSec": 10
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+          var result = entityResult(entity);
+        }
+      );
+    });
+    joinGame("Bob", game);
+    
+    it("do the other stuff like check things");
+
+  });
+
+
 });

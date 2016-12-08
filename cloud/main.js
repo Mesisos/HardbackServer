@@ -2,6 +2,8 @@
 var util = require("util");
 var moment = require('moment');
 var constants = require('./constants.js');
+var kue = require('kue');
+var JsonPropertyFilter = require("json-property-filter");
 
 GameState = constants.GameState;
 PlayerState = constants.PlayerState;
@@ -16,6 +18,138 @@ var Turn = Parse.Object.extend("Turn");
 var Player = Parse.Object.extend("Player");
 var Contact = Parse.Object.extend("Contact");
 var Invite = Parse.Object.extend("Invite");
+
+
+// Jobs
+var jobs = kue.createQueue();
+
+function addJob(name, config) {
+  var promise = new Promise();
+
+  var delay = config.delay; delete config.delay;
+  
+  var job = jobs.create(name, config);
+  if (delay !== undefined) job.delay(delay);
+  job.save(function(err) {
+    if (err) {
+      promise.reject(err);
+    } else {
+      promise.resolve(job);
+    }
+  });
+
+  return promise;
+}
+
+
+function removeJob(id) {
+  var promise = new Promise();
+
+  kue.Job.get(id, function(err, job) {
+    if (err) {
+      promise.reject(err);
+      return;
+    }
+    job.remove(function(err) {
+      if (err) {
+        promise.reject(err);
+        return;
+      }
+      promise.resolve();
+    })
+  });
+
+  return promise;
+}
+
+
+
+jobs.process('game turn timeout', 10, function(job, done) {
+
+  var playerId = job.data.playerId;
+
+  job.log("Player: " + playerId);
+
+  
+  new Query(Player)
+    .include("game")
+    .get(playerId)
+    .then(
+      function(player) {
+        job.log("Loaded");
+        return gameNextPlayer(player.get("game"));
+      }
+    ).then(
+      function(nextPlayer) {
+        job.log("Next player: " + (nextPlayer ? nextPlayer.id : "N/A"));
+        if (nextPlayer) {
+          done();
+        } else {
+          done(new Error("Unable to transition game to next player"));
+        }
+      },
+      function(err) {
+        done(err);
+      }
+    )
+
+});
+
+jobs.process('game lobby timeout', 10, function(job, done) {
+
+  var gameId = job.data.gameId;
+
+  job.log("Game: " + gameId);
+  
+  var game;
+  var playerCount;
+
+  new Query(Game)
+    .get(gameId)
+    .then(
+      function(g) {
+        game = g;
+
+        if (game.get("state") != GameState.Lobby) {
+          return Promise.reject("Not a lobby, skipping.");
+        }
+
+        return getPlayerCount(game);
+      }
+    ).then(
+      function(c) {
+        playerCount = c;
+
+        job.log("Player count: " + playerCount);
+
+        if (playerCount < 2) {
+          job.log("Timed out");
+          notifyPlayers([game.get("currentPlayer")], {
+            alert: "Game '" + game.id + "' timed out, nobody joined!",
+            data: {
+              game: game
+            }
+          });
+          game.set("state", GameState.Ended)
+          return game.save();
+        } else {
+          return startGame(game);
+        }
+      }
+    ).then(
+      function(g) {
+        game = g;
+
+        var state = game.get("state");
+        job.log("Game state: " + GameState.getName(state));
+        done();
+      },
+      function(error) {
+        done(new Error(error));
+      }
+    );
+});
+
 
 
 function defaultError(res) {
@@ -95,6 +229,13 @@ Parse.Cloud.define("checkNameFree", function(req, res) {
       // );
 
 
+function respond(res, data, filter) {
+  if (filter) {
+    var propFilter = new JsonPropertyFilter.JsonPropertyFilter(filter);
+    data = propFilter.apply(data);
+  }
+  res.success(data);
+}
 
 
 Parse.Cloud.define("createGame", function(req, res) {
@@ -106,7 +247,7 @@ Parse.Cloud.define("createGame", function(req, res) {
     }
   ).then(
     function(gameInfo) {
-      res.success(gameInfo);
+      respond(res, gameInfo);
     },
     defaultError(res)
   );
@@ -271,15 +412,30 @@ function createGameFromConfig(user, config) {
     function(gi) {
       gameInfo = gi;
 
+      var lobbyTimeout = constants.START_GAME_AUTO_TIMEOUT;
+      return addJob("game lobby timeout", {
+        delay: lobbyTimeout*1000,
+        title: "Lobby " + game.id + " times out after " + lobbyTimeout + "s",
+        gameId: game.id
+      });
+    }
+  ).then(
+    function(job) {
       // Set creator player as the current player
       game.set("currentPlayer", gameInfo.player);
 
       // Set game state to Lobby
       game.set("state", GameState.Lobby);
+
+      // Save timeout job ID so it can be deleted later
+      game.set("lobbyTimeoutJob", job.id);
+
       return game.save();
     }
   ).then(
-    function() {
+    function(g) {
+      game = g;
+      gameInfo.game = game;
       promise.resolve(gameInfo);
     },
     function(error) {
@@ -405,8 +561,15 @@ function notifyGame(game, data) {
 
 
 function startGame(game) {
-  return game.set("state", GameState.Running)
-    .save()
+  var state = game.get("state");
+  if (state != GameState.Lobby) {
+    return Promise.reject(
+      "Unable to start a game in state: " + GameState.getName(state)
+    );
+  }
+  game.set("state", GameState.Running);
+
+  return Promise.when(game.save(), removeJob(game.get("lobbyTimeoutJob")))
     .then(
       function(g) {
         game = g;
@@ -416,6 +579,10 @@ function startGame(game) {
             game: augmentGameState(game.toJSON())
           }
         });
+      }
+    ).then(
+      function() {
+        return prepareTurn(game, game.get("currentPlayer"));
       }
     ).then(
       function() {
@@ -669,7 +836,7 @@ function augmentGameState(game) {
   var momentCreated = moment(game.createdAt);
   game.createdAgo = momentCreated.from(now);
   game.updatedAgo = moment(game.updatedAt).from(now);
-  var momentStartTimeout = now.subtract(constants.START_GAME_TIMEOUT, "seconds");
+  var momentStartTimeout = now.subtract(constants.START_GAME_MANUAL_TIMEOUT, "seconds");
   game.startable =
     game.state == GameState.Lobby &&
     momentCreated.isBefore(momentStartTimeout);
@@ -919,7 +1086,73 @@ Parse.Cloud.define("listFriends", function(req, res) {
     */
 });
 
+function prepareTurn(game, player, previousTurn) {
 
+  if (!previousTurn) previousTurn = null;
+
+  var timeout = game.get("config").get("turnMaxSec");
+  if (isNaN(timeout)) {
+    return Promise.reject(new Error("Invalid game timeout: " + timeout));
+  }
+
+  var pushPromise = notifyPlayers([player], {
+    alert: "It's your turn in game '" + game.id + "'!",
+    data: {
+      game: augmentGameState(game.toJSON()),
+      previousTurn: previousTurn
+    }
+  });
+
+
+  var jobPromise = addJob("game turn timeout", {
+    delay: timeout*1000,
+    title: "Turn times out after " + timeout + "s",
+    playerId: player.id
+  });
+
+  return Promise.when(pushPromise, jobPromise);
+}
+
+function gameNextPlayer(game, lastTurn, final) {
+
+  var nextPlayer;
+
+  return (final ? Promise.resolve(null) : findNextPlayer(game)).then(
+    function(np) {
+      nextPlayer = np;
+      game.increment("turn");
+      game.set("currentPlayer", nextPlayer);
+      if (final) game.set("state", GameState.Ended);
+
+      var turnPromise;
+      if (lastTurn) {
+        turnPromise = Promise.resolve(lastTurn);
+      } else {
+        var turnQuery = new Query(Turn);
+        turnPromise = turnQuery
+          .equalTo("game", game)
+          .addDescending("createdAt")
+          .first();
+      }
+
+      var configPromise = Parse.Object.fetchAllIfNeeded([game.get("config")]);
+
+      return Promise.when(game.save(), turnPromise, configPromise);
+    }
+  ).then(
+    function(g, turn, configResults) {
+      if (!final) {
+        return prepareTurn(game, nextPlayer, turn);
+      }
+      return Promise.resolve();
+    }
+  ).then(
+    function() {
+      return Promise.resolve(nextPlayer);
+    }
+  );
+
+}
 
 Parse.Cloud.define("gameTurn", function(req, res) {
   if (errorOnInvalidUser(req.user, res)) return;
@@ -948,26 +1181,34 @@ Parse.Cloud.define("gameTurn", function(req, res) {
 
         var save = String(req.params.state);
         // TODO: validate
-        // TODO: notify
 
         var turn = new Turn();
         turn.set("game", game);
         turn.set("save", save);
         turn.set("player", currentPlayer);
-        return turn.save();
+        turn.set("turn", game.get("turn"));
 
+        return Promise.when(turn.save(), gameNextPlayer(game, turn, final));
       }
     ).then(
-      function(turn) {
+      function(turn, nextPlayer) {
+        
+        var promises = [];
+
         if (final) {
-          game.set("state", GameState.Ended);
-          return game.save();
-        } else {
-          return Promise.resolve(game);
+          promises[promises.length] = notifyGame(game, {
+            alert: "Game '" + game.id + "' has ended!",
+            data: {
+              game: augmentGameState(game.toJSON()),
+              lastTurn: turn
+            }
+          })
         }
+
+        return Promise.when(promises);
       }
     ).then(
-      function(game) {
+      function(results) {
         res.success({
           saved: true,
           ended: final
@@ -975,36 +1216,6 @@ Parse.Cloud.define("gameTurn", function(req, res) {
       },
       defaultError(res)
     );
-});
-
-Parse.Cloud.beforeSave(Turn, function(req, res) {
-  var turn = req.object;
-  var game = turn.get("game");
-
-  var currentPlayer;
-
-  var query = new Query(Game);
-  query.include("currentPlayer");
-  query.get(game.id).then(
-    function(g) {
-      game = g;
-      turn.set("turn", game.get("turn"));
-      game.increment("turn");
-      return findNextPlayer(game);
-    }
-  ).then(
-    function(nextPlayer) {
-      // console.log("Found next player", nextPlayer);
-      game.set("currentPlayer", nextPlayer);
-      return game.save();
-    }
-  ).then(
-    function(game) {
-      // console.log("Game saved", game);
-      res.success();
-    },
-    defaultError(res)
-  );
 });
 
 // DONE get next player by date
@@ -1062,6 +1273,7 @@ function findNextPlayer(game) {
 
   return promise;
 }
+
 
 
 
