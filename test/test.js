@@ -44,18 +44,25 @@ function requestLogin(username, password) {
 }
 
 function parseCall(username, funcname, payload) {
-  var token = tokens[username];
-  // console.log(username, funcname, token, payload);
-  if (typeof(token) != "string" || token === "") {
-    return Promise.reject(new Error("Token missing for " + username));
+
+  var headers = {
+    "Content-Type": "application/json",
+    "X-Parse-Application-Id": appId
   }
+
+  if (username) {
+    var token = tokens[username];
+    if (typeof(token) != "string" || token === "") {
+      return Promise.reject(new Error("Token missing for " + username));
+    }
+    headers["X-Parse-Session-Token"] = token;
+  } else {
+    headers["X-Parse-Master-Key"] = masterKey;
+  }
+
   return client({
     path: urlParse + "functions/" + funcname,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Parse-Application-Id": appId,
-      "X-Parse-Session-Token": token
-    },
+    headers: headers,
     entity: payload
   }).then(function(response) {
     response.should.have.property("entity");
@@ -113,7 +120,9 @@ function getUserSessions() {
 
           fs.writeFile(sessionFile, JSON.stringify(tokens), function(err) {
             if (err) {
-              mainPromise.reject("Unable to update sessions file: " + err);
+              mainPromise.reject(new Error(
+                "Unable to update sessions file: " + err
+              ));
             } else {
               console.log("Sessions file updated");
               mainPromise.resolve();
@@ -122,7 +131,7 @@ function getUserSessions() {
         },
         function(error) {
           console.error(error);
-          mainPromise.reject("Unable to login all users");
+          mainPromise.reject(new Error("Unable to login all users"));
         }
       );
     }
@@ -268,6 +277,34 @@ function makeTurn(name, game, type, turnNumber) {
   });
 }
 
+function getJob(id) {
+  var promise = new Promise();
+  kue.Job.get(id, function(err, job) {
+    if (err) {
+      promise.reject(new Error(err));
+      return;
+    }
+    promise.resolve(job);
+  });
+  return promise;
+}
+
+function checkDeletedJob(id) {
+  var promise = new Promise();
+  getJob(id).then(
+    function(job) {
+      promise.reject(new Error(
+        "Job was found, but it should've been deleted: " + job.id
+      ));
+    },
+    function(err) {
+      promise.resolve();
+    }
+  )
+  return promise;
+}
+
+
 
 describe('game flow', function() {
   before(getUserSessions);
@@ -314,8 +351,7 @@ describe('game flow', function() {
           var result = entityResult(entity);
           result.should.have.property("link");
           game.invite = result.link;
-          result.should.have.deep.property("invite.inviter.game.objectId");
-          result.invite.inviter.game.objectId.should.equal(game.id);
+          result.should.have.deep.property("invite.objectId");
           result.link.should.equal(constants.INVITE_URL_PREFIX + result.invite.objectId);
         }
       );
@@ -407,7 +443,7 @@ describe('game flow', function() {
           var turn = result.turns[0];
           turn.turn.should.equal(5);
           turn.save.should.equal("turn 5");
-          turn.player.user.username.should.equal("Bob");
+          turn.player.user.displayName.should.equal("Bobzor");
         }
       );
     });
@@ -424,11 +460,11 @@ describe('game flow', function() {
           result.turns.should.have.length(2);
 
           var turnAlice = result.turns[0];
-          turnAlice.player.user.username.should.equal("Alice");
+          turnAlice.player.user.displayName.should.equal("Ally");
           turnAlice.turn.should.equal(4);
 
           var turnBob = result.turns[1];
-          turnBob.player.user.username.should.equal("Bob");
+          turnBob.player.user.displayName.should.equal("Bobzor");
           turnBob.turn.should.equal(3);
         }
       );
@@ -446,8 +482,8 @@ describe('game flow', function() {
           result.should.have.property("turns");
           result.turns.forEach(function(turn) {
             turn.save.should.equal("turn " + turn.turn);
-            turn.player.user.username.should.equal(
-              turn.turn%2 == 0 ? "Alice" : "Bob"
+            turn.player.user.displayName.should.equal(
+              turn.turn%2 == 0 ? "Ally" : "Bobzor"
             );
           }, this);
         }
@@ -783,13 +819,13 @@ describe("contacts", function() {
 
               include.forEach(function(contactName) {
                 should.exist(contacts.find(function(contact) {
-                  return contact.username == contactName;
+                  return contact.displayName == contactName;
                 }));
               }, this);
 
               exclude.forEach(function(contactName) {
                 should.not.exist(contacts.find(function(contact) {
-                  return contact.username == contactName;
+                  return contact.displayName == contactName;
                 }));
               }, this);
               
@@ -827,12 +863,12 @@ describe("contacts", function() {
     joinGame("Carol", game, 'has Carol join game');
 
     var bobId;
-    contactCheck("Carol", null, ["Alice", "Bob"], ["Carol", "Dan"], function(contacts) {
-      bobId = contacts.find(function(contact) { return contact.username == "Bob"; }).objectId;
+    contactCheck("Carol", null, ["Ally", "Bobzor"], ["Carry", "Dan the Man"], function(contacts) {
+      bobId = contacts.find(function(contact) { return contact.displayName == "Bobzor"; }).objectId;
     });
 
-    contactCheck("Bob", null, ["Alice", "Carol"], ["Bob", "Dan"]);
-    contactCheck("Alice", null, ["Bob", "Carol"], ["Alice", "Dan"]);
+    contactCheck("Bob", null, ["Ally", "Carry"], ["Bobzor", "Dan the Man"]);
+    contactCheck("Alice", null, ["Bobzor", "Carry"], ["Ally", "Dan the Man"]);
 
     contactCheck("Dan", "still returns nobody for Dan :(");
 
@@ -847,7 +883,7 @@ describe("contacts", function() {
       );
     });
     
-    contactCheck("Carol", "should make sure Carol hates Bob now", ["Alice"], ["Bob", "Carol", "Dan"]);
+    contactCheck("Carol", "should make sure Carry hates Bob now", ["Ally"], ["Bobzor", "Carry", "Dan the Man"]);
 
   });
 });
@@ -930,28 +966,12 @@ describe("kue", function() {
     joinGame("Bob", game);
 
     it("should get deleted after game starts", function() {
-
-      return parseCall("Alice", "listGames", {
-        gameIds: [game.id]  
+      return parseCall(null, "debugGame", {
+        gameId: game.id
       }).then(
         function(entity) {
           var result = entityResult(entity);
-          result.should.have.property("games");
-          result.games.should.be.an("array");
-          result.games.should.have.length(1);
-          
-          var promise = new Promise();
-
-          var timeoutJob = result.games[0].lobbyTimeoutJob;
-          kue.Job.get(timeoutJob, function(err, job) {
-            if (err) {
-              promise.resolve();
-              return;
-            }
-            promise.reject(new Error("Job was found, but it should've been deleted: " + job.id));
-          });
-
-          return promise;
+          return checkDeletedJob(result.lobbyTimeoutJob);
         }
       );
     });
@@ -959,14 +979,14 @@ describe("kue", function() {
 
   describe("turn timeout job", function() {
 
-    var turnMaxSec = 3;
+    var turnMaxSec = 1;
     var game = {};
 
     it('creates a game with Alice', function() {
       return parseCall("Alice", "createGame", {
         "slotNum": 2,
         "isRandom": false,
-        "turnMaxSec": 10
+        "turnMaxSec": turnMaxSec
       }).then(
         function(entity) {
           game.id = entityGameId(entity);
@@ -975,8 +995,75 @@ describe("kue", function() {
       );
     });
     joinGame("Bob", game);
+
+    it('sets job id in game', function() {
+      return parseCall(null, "debugGame", {
+        gameId: game.id
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("turnTimeoutJob");
+          game.turnTimeoutJob = result.turnTimeoutJob; 
+        }
+      );
+    });
     
-    it("do the other stuff like check things");
+    it('should be running', function() {
+      return getJob(game.turnTimeoutJob).then(
+        function(job) {
+          job.id.should.equal(game.turnTimeoutJob);
+        }
+      );
+    });
+
+    var turnNumber = 0;
+    makeTurn("Alice", game, "allow", turnNumber++);
+    
+    it("should get deleted after a turn is made", function() {
+      return checkDeletedJob(game.turnTimeoutJob);
+    });
+
+    it('sets new job id in game', function() {
+      return parseCall(null, "debugGame", {
+        gameId: game.id
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("turnTimeoutJob");
+          result.turnTimeoutJob.should.not.equal(game.turnTimeoutJob);
+          game.turnTimeoutJob = result.turnTimeoutJob; 
+        }
+      );
+    });
+
+    makeTurn("Alice", game, "deny", turnNumber);
+    
+    it("should advance to the next player after timeout", function() {
+      var promise = new Promise();
+      setTimeout(function() {
+        promise.resolve();
+      }, turnMaxSec*1000 + 1000);
+      this.timeout(turnMaxSec*1000 + 2000);
+
+      return promise.then(
+        function() {
+          return parseCall(null, "debugGame", {
+            gameId: game.id
+          });
+        }
+      ).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("turnTimeoutJob");
+          result.turnTimeoutJob.should.not.equal(game.turnTimeoutJob);
+          game.turnTimeoutJob = result.turnTimeoutJob;
+        }
+      )
+    });
+
+    makeTurn("Bob", game, "deny", turnNumber);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob", game, "finish", turnNumber++);
 
   });
 

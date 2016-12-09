@@ -5,6 +5,7 @@ var constants = require('./constants.js');
 var kue = require('kue');
 var JsonPropertyFilter = require("json-property-filter");
 
+
 GameState = constants.GameState;
 PlayerState = constants.PlayerState;
 AIDifficulty = constants.AIDifficulty;
@@ -42,7 +43,7 @@ function addJob(name, config) {
 }
 
 
-function removeJob(id) {
+function removeJobWithError(id) {
   var promise = new Promise();
 
   kue.Job.get(id, function(err, job) {
@@ -62,6 +63,26 @@ function removeJob(id) {
   return promise;
 }
 
+function removeJob(id) {
+  var promise = new Promise();
+
+  kue.Job.get(id, function(err, job) {
+    if (err) {
+      promise.resolve(false);
+      return;
+    }
+    job.remove(function(err) {
+      if (err) {
+        promise.resolve(false);
+        return;
+      }
+      promise.resolve(true);
+    })
+  });
+
+  return promise;
+}
+
 
 
 jobs.process('game turn timeout', 10, function(job, done) {
@@ -70,13 +91,19 @@ jobs.process('game turn timeout', 10, function(job, done) {
 
   job.log("Player: " + playerId);
 
-  
   new Query(Player)
     .include("game")
     .get(playerId)
     .then(
       function(player) {
         job.log("Loaded");
+        var currentPlayer = player.get("game").get("currentPlayer");
+        if (currentPlayer.id != player.id) {
+          job.log("Timeout player " + player.id + " does not match current player " + currentPlayer.id);
+          return Promise.reject(new Error(
+            "Unable to time out turn due to different current player"
+          ));
+        }
         return gameNextPlayer(player.get("game"));
       }
     ).then(
@@ -229,10 +256,104 @@ Parse.Cloud.define("checkNameFree", function(req, res) {
       // );
 
 
+var parseObjectConfig = {
+  "_User": {
+    filter: [
+      "displayName",
+      "objectId"
+    ]
+  },
+  "Game": {
+    filter: [
+      "**",
+      "-lobbyTimeoutJob",
+      "-turnTimeoutJob"
+    ],
+    post: function(game) {
+      var now = moment();
+      var momentCreated = moment(game.createdAt);
+      game.createdAgo = momentCreated.from(now);
+      game.updatedAgo = moment(game.updatedAt).from(now);
+      var momentStartTimeout = now.subtract(constants.START_GAME_MANUAL_TIMEOUT, "seconds");
+      game.startable =
+        game.state == GameState.Lobby &&
+        momentCreated.isBefore(momentStartTimeout);
+      return game;
+    }
+  },
+  "Invite": {
+    filter: [
+      "**",
+      "-inviter"
+    ]
+  },
+  "Player": {
+    filter: [
+      "**",
+      "-game"
+    ]
+  }
+}
+
+function getPropFilter(filter) {
+  return new JsonPropertyFilter.JsonPropertyFilter(
+    filter.concat(["__type", "className"])
+  );
+}
+
+function filterObject(obj, level) {
+  if (level === undefined) level = 0;
+  // var startTime; if (level == 0) startTime = Date.now();
+  if (obj === null || obj === undefined) return obj;
+  switch (typeof(obj)) {
+    case "array":
+      var len = obj.length;
+      for (var i = 0; i < len; i++) {
+        obj[i] = filterObject(obj[i], level + 1);
+      }
+      break;
+
+    case "object":
+      if (typeof(obj.toJSON) === "function") {
+        // console.log("Converting to JSON");
+        var className = obj.className;
+        obj = obj.toJSON();
+        obj.className = className;
+      }
+      if (obj.className) {
+        var config = parseObjectConfig[obj.className];
+        if (config) {
+          if (config.filter) {
+            // console.log("Filtering");
+            var propFilter = config.filterInstance;
+            if (!propFilter) {
+              propFilter = config.filterInstance = getPropFilter(config.filter);
+            }
+            obj = propFilter.apply(obj);
+          }
+          if (config.post && obj.__type != "Pointer") {
+            // console.log("Postprocessing");
+            obj = config.post(obj);
+          }
+        }
+      }
+      // console.log("Processing children");
+      for (var prop in obj) {
+        // var prefix = ""; while (prefix.length < level) prefix = prefix + " ";
+        // console.log(prefix, prop + ": " + typeof(obj[prop]));
+        obj[prop] = filterObject(obj[prop], level + 1);
+      }
+      break;
+  }
+  // if (level == 0) console.log("Filtering:", Date.now() - startTime);
+  return obj;
+}
+
 function respond(res, data, filter) {
+  data = filterObject(data);
+
   if (filter) {
-    var propFilter = new JsonPropertyFilter.JsonPropertyFilter(filter);
-    data = propFilter.apply(data);
+    data = getPropFilter(filter).apply(data);
   }
   res.success(data);
 }
@@ -299,7 +420,7 @@ Parse.Cloud.define("getInvite", function(req, res) {
       }
     ).then(
       function(invite) {
-        res.success({
+        respond(res, {
           "invite": invite,
           "link": getInviteLink(invite)
         });
@@ -309,39 +430,53 @@ Parse.Cloud.define("getInvite", function(req, res) {
   
 });
 
-Parse.Cloud.define("findGames", function(req, res) {
-  var user = req.user;
-  if (errorOnInvalidUser(user, res)) return;
-
-  var minLimit = 1;
-  var maxLimit = 100;
-  var defaultLimit = 20;
-
+function addPaging(query, req, config) {
   var limit = Number(req.params.limit);
-  if (isNaN(limit)) limit = defaultLimit;
-  if (limit < minLimit) limit = minLimit;
-  if (limit > maxLimit) limit = maxLimit;
+  if (isNaN(limit)) limit = config.limit.default;
+  if (limit < config.limit.min) limit = config.limit.min;
+  if (limit > config.limit.max) limit = config.limit.max;
 
   var skip = Number(req.params.skip);
   if (isNaN(skip)) skip = 0;
+
+  if (config.sort) {
+    for (var si = 0; si < config.sort.length; si++) {
+      var s = config.sort[si];
+      switch (s.dir) {
+        case "ascending":  query.addAscending(s.name); break;
+        case "descending": query.addDescending(s.name); break;
+        default: throw new Error(
+          "Sort direction should be either 'ascending' or 'descending', not '" + s.dir + "'"
+        );
+      }
+    }
+  }
+
+  query.limit(limit);
+  query.skip(skip);
+}
+
+
+Parse.Cloud.define("findGames", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
 
   var configQuery = new Query(Config);
   configQuery
     .equalTo("isRandom", true);
   
   var query = new Query(Game);
+  addPaging(query, req, constants.FIND_GAME_PAGING);
   query
     .matchesQuery("config", configQuery)
     .equalTo("state", GameState.Lobby)
-    .addAscending("createdAt")
     .include("config")
-    .limit(limit)
-    .skip(skip)
+    .include("creator")
     .find()
     .then(
       function(games) {
         if (games) {
-          res.success({
+          respond(res, {
             "games": games
           });
         } else {
@@ -415,7 +550,7 @@ function createGameFromConfig(user, config) {
       var lobbyTimeout = constants.START_GAME_AUTO_TIMEOUT;
       return addJob("game lobby timeout", {
         delay: lobbyTimeout*1000,
-        title: "Lobby " + game.id + " times out after " + lobbyTimeout + "s",
+        title: "Game " + game.id + ", " + lobbyTimeout + "s",
         gameId: game.id
       });
     }
@@ -523,7 +658,7 @@ function getPlayerCount(game) {
 
 function getGameInfo(game, playerCount, player) {
   return {
-    game: augmentGameState(game.toJSON()),
+    game: game,
     playerCount: playerCount,
     player: player
   };
@@ -543,7 +678,7 @@ function notifyPlayers(players, data) {
 
   return Parse.Push.send({
     where: installationQuery,
-    data: data
+    data: filterObject(data)
   }, { useMasterKey: true });
 }
 
@@ -576,7 +711,7 @@ function startGame(game) {
         return notifyGame(game, {
           alert: "Game '" + game.id + "' has started!",
           data: {
-            game: augmentGameState(game.toJSON())
+            game: game
           }
         });
       }
@@ -675,12 +810,19 @@ Parse.Cloud.beforeSave(Player, function(req, res) {
 
 });
 
-
+function fetchInclude(object, includes) {
+  var query = new Query(object);
+  return query
+    .include(includes)
+    .get(object.id);
+}
 
 Parse.Cloud.define("joinGame", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
   
+  var gameInfo;
+
   var gameId = String(req.params.gameId);
   var query = new Query(Game);
   query
@@ -692,8 +834,19 @@ Parse.Cloud.define("joinGame", function(req, res) {
         return joinGame(game, user);
       }
     ).then(
-      function(gameInfo) {
-        res.success(gameInfo);
+      function(gi) {
+        gameInfo = gi;
+        return fetchInclude(gameInfo.game, [
+          "config",
+          "creator",
+          "currentPlayer",
+          "currentPlayer.user"
+        ]);
+      }
+    ).then(
+      function(game) {
+        gameInfo.game = game;
+        respond(res, gameInfo);
       },
       defaultError(res)
     );
@@ -721,6 +874,7 @@ Parse.Cloud.define("leaveGame", function(req, res) {
           .equalTo("game", game)
           .equalTo("user", user)
           .equalTo("state", PlayerState.Active)
+          .include("user")
           .first();
       }
     ).then(
@@ -748,7 +902,7 @@ Parse.Cloud.define("leaveGame", function(req, res) {
       }
     ).then(
       function(game) {
-        res.success({
+        respond(res, {
           left: true,
           player: leaver
         });
@@ -830,20 +984,6 @@ Parse.Cloud.beforeSave(Contact, function(req, res) {
     );
 });
 
-// I never asked for this.
-function augmentGameState(game) {
-  var now = moment();
-  var momentCreated = moment(game.createdAt);
-  game.createdAgo = momentCreated.from(now);
-  game.updatedAgo = moment(game.updatedAt).from(now);
-  var momentStartTimeout = now.subtract(constants.START_GAME_MANUAL_TIMEOUT, "seconds");
-  game.startable =
-    game.state == GameState.Lobby &&
-    momentCreated.isBefore(momentStartTimeout);
-  return game;
-}
-
-
 Parse.Cloud.define("listGames", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
@@ -863,18 +1003,24 @@ Parse.Cloud.define("listGames", function(req, res) {
   gamesPromise.then(
     function(games) {
       var playerQuery = new Query(Player);
-      playerQuery.equalTo("user", user);
-      playerQuery.include("game");
       if (games) playerQuery.containedIn("game", games);
-      playerQuery.limit(1000);
+      addPaging(playerQuery, req, constants.GAME_PAGING);
+      playerQuery
+        .equalTo("user", user)
+        .equalTo("state", PlayerState.Active)
+        .include("game")
+        .include("game.config")
+        .include("game.creator.displayName")
+        .include("game.currentPlayer");
+
       return playerQuery.find();
     }
   ).then(
     function(players) {
       var games = players.map(function(player) {
-        return augmentGameState(player.get("game").toJSON());
+        return player.get("game");
       });
-      res.success({
+      respond(res, {
         "games": games
       });
     },
@@ -908,9 +1054,7 @@ Parse.Cloud.define("startGame", function(req, res) {
       function(p) {
         player = p;
         if (!player) return Promise.reject("Unable to start a third party game.");
-        var gameJSON = game.toJSON();
-        augmentGameState(gameJSON);
-        if (gameJSON.startable) {
+        if (filterObject(game).startable) {
           return startGame(game);
         } else {
           return Promise.reject("Unable to start game, invalid state.");
@@ -928,7 +1072,7 @@ Parse.Cloud.define("startGame", function(req, res) {
     ).then(
       function(playerCount) {
         if (playerCount >= 2) {
-          res.success(getGameInfo(game, playerCount, player));
+          respond(res, getGameInfo(game, playerCount, player));
         } else {
           res.error("Unable to start game with less than two players.");
         }
@@ -941,18 +1085,6 @@ Parse.Cloud.define("listTurns", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
   
-  var minLimit = 1;
-  var maxLimit = 100;
-  var defaultLimit = 3;
-
-  var limit = Number(req.params.limit);
-  if (isNaN(limit)) limit = defaultLimit;
-  if (limit < minLimit) limit = minLimit;
-  if (limit > maxLimit) limit = maxLimit;
-
-  var skip = Number(req.params.skip);
-  if (isNaN(skip)) skip = 0;
-
   var gameId = String(req.params.gameId);
   var gameQuery = new Query(Game);
   gameQuery
@@ -971,47 +1103,17 @@ Parse.Cloud.define("listTurns", function(req, res) {
         if (!player) return Promise.reject("Unable to list third party turns.");
         if (errorOnInvalidGame(game, res, [GameState.Running, GameState.Ended])) return;
         var query = new Query(Turn);
+        addPaging(query, req, constants.TURN_PAGING);
         return query
           .equalTo("game", game)
           .include("player.user")
-          .addDescending("createdAt")
-          .limit(limit)
-          .skip(skip)
           .find();
       }
     ).then(
       function(turns) {
         if (!turns) return Promise.reject("No turns found.");
-        res.success({
+        respond(res, {
           turns: turns
-        });
-      },
-      defaultError(res)
-    );
-});
-
-Parse.Cloud.define("deleteFriend", function(req, res) {
-  var user = req.user;
-  if (errorOnInvalidUser(user, res)) return;
-
-  var contactId = String(req.params.userId);
-  var contact = new Parse.User();
-  contact.id = contactId;
-
-  var contactQuery = new Query(Contact);
-  contactQuery
-    .equalTo("user", user)
-    .equalTo("contact", contact)
-    .first()
-    .then(
-      function(contact) {
-        if (!contact) return Promise.reject("Contact not found");
-        return contact.destroy();
-      }
-    ).then(
-      function() {
-        res.success({
-          deleted: true
         });
       },
       defaultError(res)
@@ -1023,18 +1125,17 @@ Parse.Cloud.define("listFriends", function(req, res) {
   if (errorOnInvalidUser(user, res)) return;
 
   var contactQuery = new Query(Contact);
+  addPaging(contactQuery, req, constants.CONTACT_PAGING)
   contactQuery
     .equalTo("user", user)
     .include("contact")
-    .limit(1000)
     .find()
     .then(
       function(contacts) {
         var users = contacts.map(function(contact) {
-          // TODO: filter?
           return contact.get("contact");
         });
-        res.success({
+        respond(res, {
           contacts: users
         });
       },
@@ -1086,6 +1187,34 @@ Parse.Cloud.define("listFriends", function(req, res) {
     */
 });
 
+Parse.Cloud.define("deleteFriend", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+
+  var contactId = String(req.params.userId);
+  var contact = new Parse.User();
+  contact.id = contactId;
+
+  var contactQuery = new Query(Contact);
+  contactQuery
+    .equalTo("user", user)
+    .equalTo("contact", contact)
+    .first()
+    .then(
+      function(contact) {
+        if (!contact) return Promise.reject("Contact not found");
+        return contact.destroy();
+      }
+    ).then(
+      function() {
+        respond(res, {
+          deleted: true
+        });
+      },
+      defaultError(res)
+    );
+});
+
 function prepareTurn(game, player, previousTurn) {
 
   if (!previousTurn) previousTurn = null;
@@ -1098,17 +1227,29 @@ function prepareTurn(game, player, previousTurn) {
   var pushPromise = notifyPlayers([player], {
     alert: "It's your turn in game '" + game.id + "'!",
     data: {
-      game: augmentGameState(game.toJSON()),
+      game: game,
       previousTurn: previousTurn
     }
   });
 
-
+  var job;
   var jobPromise = addJob("game turn timeout", {
     delay: timeout*1000,
-    title: "Turn times out after " + timeout + "s",
+    title: "Game " + game.id + ", Player " + player.id + ", " + timeout + "s",
     playerId: player.id
-  });
+  }).then(
+    function(j) {
+      job = j;
+      var gameSaver = new Game();
+      gameSaver.id = game.id;
+      gameSaver.set("turnTimeoutJob", job.id);
+      return gameSaver.save(); 
+    }
+  ).then(
+    function(savedGame) {
+      return Promise.resolve(job);
+    }
+  );
 
   return Promise.when(pushPromise, jobPromise);
 }
@@ -1188,7 +1329,11 @@ Parse.Cloud.define("gameTurn", function(req, res) {
         turn.set("player", currentPlayer);
         turn.set("turn", game.get("turn"));
 
-        return Promise.when(turn.save(), gameNextPlayer(game, turn, final));
+        return Promise.when(
+          turn.save(),
+          gameNextPlayer(game, turn, final),
+          removeJob(game.get("turnTimeoutJob"))
+        );
       }
     ).then(
       function(turn, nextPlayer) {
@@ -1199,7 +1344,7 @@ Parse.Cloud.define("gameTurn", function(req, res) {
           promises[promises.length] = notifyGame(game, {
             alert: "Game '" + game.id + "' has ended!",
             data: {
-              game: augmentGameState(game.toJSON()),
+              game: game,
               lastTurn: turn
             }
           })
@@ -1209,7 +1354,7 @@ Parse.Cloud.define("gameTurn", function(req, res) {
       }
     ).then(
       function(results) {
-        res.success({
+        respond(res, {
           saved: true,
           ended: final
         });

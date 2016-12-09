@@ -18,7 +18,9 @@
 	"turn": "number",
 	"config": "*Config",
 	"creator": "*_User",
-	"currentPlayer": "*Player"
+	"currentPlayer": "*Player",
+	"lobbyTimeoutJob": "number",
+	"turnTimeoutJob": "number"
 }
 {
 	"_id": "Config",

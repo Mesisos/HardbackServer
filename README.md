@@ -58,12 +58,15 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 	* [ ] On/near turn timeout?
 	* [ ] Join game?
 	* [ ] Leave game?
-* [ ] Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips
-* [ ] Clean up responses so they don't contain too much stuff
+* [X] ~~*Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips*~~
+	* [X] ~~*Don't skip if the turn was made + tests*~~
+	* [ ] Timeout timing out?
+* [ ] Add test for listGames not returning a game a player has left
+* [X] ~~*Clean up responses so they don't contain too much stuff*~~
 * [ ] Replace defaultError with semantic errors
 * [ ] Index functions to cloud code with master key
 * [ ] Query limits?
-* [ ] Filter returned User objects (listFriends etc.)
+* [X] ~~*Filter returned User objects (listFriends etc.)*~~
 * [ ] Verify parameter validity on saving of all (most? at least Game?) objects
 	* [ ] beforeSave User?
 * [ ] Analyze performance and add Mongo indexes if necessary/possible
@@ -117,6 +120,7 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] HTTPS!
 * [ ] Input validation
 * [ ] Access security
+* [ ] Do we need to hide User object IDs?
 
 # API
 
@@ -260,8 +264,7 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 {
 	"link": "url of the invite website",
 	"invite": {
-		"inviter": {...}, // Your Player object
-		"objectId": "id"
+		"objectId": "id" // The invite ID
 	}
 }
 ```
@@ -303,7 +306,12 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ## `findGames`
 ### Request
 ```
-{}
+{
+	// How many games to return sorted by least recent first
+	"limit": integer (default 20, min 1, max 100)
+	// How many games to skip (for pagination)
+	"skip": integer (default 0)
+}
 ```
 ### Response
 ```
@@ -334,7 +342,11 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ### Request
 ```
 {
-	// Optional, returns all games if omitted
+	// How many games to return sorted by most recent first
+	"limit": integer (default 20, min 1, max 100)
+	// How many games to skip (for pagination)
+	"skip": integer (default 0),
+	// Optionally filter to specific game IDs
 	"gameIds": ["idA", "idB", ...]
 }
 ```
@@ -361,7 +373,12 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ## `listFriends`
 ### Request
 ```
-{}
+{
+	// How many contacts to return sorted by most recent first
+	"limit": integer (default 100, min 1, max 1000)
+	// How many contacts to skip (for pagination)
+	"skip": integer (default 0)
+}
 ```
 ### Response
 ```
@@ -420,7 +437,7 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 {
 	"gameId": "id",
 	// How many turns to return sorted by most recent first
-	"limit": integer (default 3)
+	"limit": integer (default 3, min 1, max 100)
 	// How many turns to skip (for pagination)
 	"skip": integer (default 0)
 }

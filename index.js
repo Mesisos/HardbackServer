@@ -103,6 +103,23 @@ if (process.env.TESTING === "true") {
   kue.app.listen(3000);
   console.log('kue UI started on port 3000');
 
+
+  Parse.Cloud.define("debugGame", function(req, res) {
+    if (!req.master) { res.error("unauthorized"); return; }
+    var query = new Parse.Query(Parse.Object.extend("Game"));
+    query
+      .get(req.params.gameId)
+      .then(
+        function(game) {
+          res.success(game);
+        },
+        function(error) {
+          res.error(error);
+        }
+      );
+  });
+
+
   app.get('/createAccount', function(req, res) {
     var user = new Parse.User();
     user.set("username", req.query.user);
