@@ -94,21 +94,51 @@ jobs.process('game turn timeout', 10, function(job, done) {
 
   new Query(Player)
     .include("game")
+    .include("game.config")
     .get(playerId)
     .then(
       function(player) {
         job.log("Loaded");
-        var currentPlayer = player.get("game").get("currentPlayer");
+        var game = player.get("game");
+        var currentPlayer = game.get("currentPlayer");
         if (currentPlayer.id != player.id) {
           job.log("Timeout player " + player.id + " does not match current player " + currentPlayer.id);
           return Promise.reject(new Error(
             "Unable to time out turn due to different current player"
           ));
         }
-        return gameNextPlayer(player.get("game"));
+
+        var consecutiveTurnTimeouts = game.get("consecutiveTurnTimeouts");
+        var slotNum = game.get("config").get("slotNum");
+        var timeoutRounds = (consecutiveTurnTimeouts + 1) / slotNum;
+        
+        game.increment("consecutiveTurnTimeouts");
+
+        if (timeoutRounds >= constants.GAME_ENDING_INACTIVE_ROUNDS) {
+          job.log("Game timed out");
+          job.log("  consecutiveTurnTimeouts:", consecutiveTurnTimeouts);
+          job.log("  slotNum:", slotNum);
+          game.set("state", GameState.Ended);
+          return Promise.when(
+            null,
+            game.save(),
+            notifyGame(game, {
+              alert: "Game '" + game.id + "' ran out!",
+              data: {
+                // TODO: error code
+              }
+            })
+          );
+        }
+
+        return gameNextPlayer(game);
       }
     ).then(
-      function(nextPlayer) {
+      function(nextPlayer, endedGame, endedPush) {
+        if (endedGame) {
+          return Promise.resolve();
+        }
+
         job.log("Next player: " + (nextPlayer ? nextPlayer.id : "N/A"));
         if (nextPlayer) {
           return Promise.resolve();
@@ -541,6 +571,7 @@ function createGameFromConfig(user, config) {
   game.set("config", config);
   game.set("state", GameState.Init);
   game.set("turn", 0);
+  game.set("consecutiveTurnTimeouts", 0);
   game.set("creator", user);
   game.save().then(
     function(g) {
@@ -1218,7 +1249,8 @@ function prepareTurn(game, player, previousTurn) {
 
   if (!previousTurn) previousTurn = null;
 
-  var timeout = game.get("config").get("turnMaxSec");
+  var config = game.get("config");
+  var timeout = config.get("turnMaxSec");
   if (isNaN(timeout)) {
     return Promise.reject(new Error("Invalid game timeout: " + timeout));
   }
@@ -1234,7 +1266,12 @@ function prepareTurn(game, player, previousTurn) {
   var job;
   var jobPromise = addJob("game turn timeout", {
     delay: timeout*1000,
-    title: "Game " + game.id + ", Player " + player.id + ", " + timeout + "s",
+    title:
+      "Game " + game.id +
+      ", " + "Player " + player.id +
+      ", " + timeout + "s" +
+      ", " + (game.get("consecutiveTurnTimeouts") + 1) + " / " 
+           + constants.GAME_ENDING_INACTIVE_ROUNDS*config.get("slotNum"),
     playerId: player.id
   }).then(
     function(j) {
@@ -1254,7 +1291,8 @@ function prepareTurn(game, player, previousTurn) {
 }
 
 /**
- * Transitions the game to the next player.
+ * Transitions the game to the next player. This also saves any pending changes
+ * made to the game object.
  * 
  * @param game      The game to transition.
  * @param lastTurn  The turn to include with the message to the next player.
@@ -1271,10 +1309,6 @@ function gameNextPlayer(game, lastTurn, final) {
       game.increment("turn");
       game.set("currentPlayer", nextPlayer);
 
-      // `nextPlayer` can be null either on the final turn or with no
-      // active players left in the game.
-      if (!nextPlayer) game.set("state", GameState.Ended);
-
       var turnTimeoutRemovalPromise = removeJob(game.get("turnTimeoutJob"));
 
       var turnPromise;
@@ -1288,11 +1322,14 @@ function gameNextPlayer(game, lastTurn, final) {
           .first();
       }
 
+      // `nextPlayer` can be null either on the final turn or with no
+      // active players left in the game.
       var configPromise;
       if (nextPlayer) {
         configPromise = Parse.Object.fetchAllIfNeeded([game.get("config")]);
       } else {
         configPromise = Promise.resolve();
+        game.set("state", GameState.Ended);
       }
 
       return Promise.when(game.save(), turnPromise, configPromise, turnTimeoutRemovalPromise);
@@ -1345,6 +1382,8 @@ Parse.Cloud.define("gameTurn", function(req, res) {
         turn.set("save", save);
         turn.set("player", currentPlayer);
         turn.set("turn", game.get("turn"));
+
+        game.set("consecutiveTurnTimeouts", 0);
 
         return Promise.when(
           turn.save(),

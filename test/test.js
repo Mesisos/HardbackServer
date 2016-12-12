@@ -1022,7 +1022,7 @@ describe("kue", function() {
     var turnMaxSec = 1;
     var game = {};
 
-    it('creates a game with Alice', function() {
+    it('creating a game with Alice', function() {
       return parseCall("Alice", "createGame", {
         "slotNum": 2,
         "isRandom": false,
@@ -1104,6 +1104,111 @@ describe("kue", function() {
     makeTurn("Bob", game, "deny", turnNumber);
     makeTurn("Alice", game, "allow", turnNumber++);
     makeTurn("Bob", game, "finish", turnNumber++);
+
+    it('should be different after a few turns', function() {
+      return parseCall(null, "debugGame", {
+        gameId: game.id
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("turnTimeoutJob");
+          result.turnTimeoutJob.should.not.equal(game.turnTimeoutJob);
+          game.turnTimeoutJob = result.turnTimeoutJob;
+        }
+      );
+    });
+
+    it('should not exist after end of game', function() {
+      return checkDeletedJob(game.turnTimeoutJob);
+    });
+
+  });
+
+  
+  describe("game ending turn timeout job", function() {
+
+    var slotNum = 2;
+    var turnMaxSec = 1;
+    var game = {};
+
+    it('creating a game with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        "slotNum": slotNum,
+        "isRandom": false,
+        "turnMaxSec": turnMaxSec
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+          var result = entityResult(entity);
+        }
+      );
+    });
+    joinGame("Bob", game);
+
+    it('should be running', function() {
+      return parseCall(null, "debugGame", {
+        gameId: game.id
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("turnTimeoutJob");
+          game.turnTimeoutJob = result.turnTimeoutJob;
+          return getJob(game.turnTimeoutJob); 
+        }
+      ).then(
+        function(job) {
+          job.id.should.equal(game.turnTimeoutJob);
+        }
+      );
+    });
+    
+    var turnNumber = 0;
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob", game, "allow", turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob", game, "allow", turnNumber++);
+
+    it('should still be running', function() {
+      return parseCall(null, "debugGame", {
+        gameId: game.id
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.should.have.property("turnTimeoutJob");
+          game.turnTimeoutJob = result.turnTimeoutJob;
+          return getJob(game.turnTimeoutJob); 
+        }
+      ).then(
+        function(job) {
+          job.id.should.equal(game.turnTimeoutJob);
+        }
+      );
+    });
+
+    it("should end the game after " + constants.GAME_ENDING_INACTIVE_ROUNDS + " inactive rounds", function() {
+      var waitMs = (turnMaxSec + 1)*slotNum*constants.GAME_ENDING_INACTIVE_ROUNDS*1000;
+      var promise = new Promise();
+      setTimeout(function() {
+        promise.resolve();
+      }, waitMs + 1000);
+      this.timeout(waitMs + 2000);
+
+      return promise.then(
+        function() {
+          return parseCall(null, "debugGame", {
+            gameId: game.id
+          });
+        }
+      ).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.state.should.equal(GameState.Ended);
+        }
+      )
+    });
+
+
+
 
   });
 

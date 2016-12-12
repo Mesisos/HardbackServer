@@ -52,18 +52,20 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] Push notifications for events
 	* [X] ~~*Start game (after `joinGame` or `startGame`): send the game state to all players*~~
 	* [X] ~~*Game turn: send the turn to the next player*~~
-	* [ ] Final game turn to all the players
+	* [X] ~~*Final game turn to all the players*~~
+	* [ ] Replace all alerts with templates from constants
 	* [ ] Add push notification expiration dates
-	* [ ] On/near game start timeout?
-	* [ ] On/near turn timeout?
-	* [ ] Join game?
-	* [ ] Leave game?
+	* [ ] ? On/near game start timeout
+	* [ ] ? On/near turn timeout
+	* [ ] ? Join game
+	* [ ] ? Leave game
 * [X] ~~*Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips*~~
 	* [X] ~~*Don't skip if the turn was made + tests*~~
-	* [ ] Timeout timing out?
+	* [X] ~~*Timeout timing out?*~~
 * [X] ~~*Add test for listGames not returning a game a player has left*~~
 * [X] ~~*Clean up responses so they don't contain too much stuff*~~
 * [ ] Replace defaultError with semantic errors
+	* [ ] Proper error codes!
 * [ ] Index functions to cloud code with master key
 * [ ] Query limits?
 * [X] ~~*Filter returned User objects (listFriends etc.)*~~

@@ -20,7 +20,8 @@
 	"creator": "*_User",
 	"currentPlayer": "*Player",
 	"lobbyTimeoutJob": "number",
-	"turnTimeoutJob": "number"
+	"turnTimeoutJob": "number",
+	"consecutiveTurnTimeouts": "number"
 }
 {
 	"_id": "Config",

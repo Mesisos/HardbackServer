@@ -12,6 +12,8 @@ module.exports = Object.freeze({
   START_GAME_MANUAL_TIMEOUT: 3,
   START_GAME_AUTO_TIMEOUT: 5,
 
+  GAME_ENDING_INACTIVE_ROUNDS: 2,
+
   GAME_PAGING: {
     limit: {
       default: 20,
