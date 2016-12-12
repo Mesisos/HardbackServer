@@ -740,7 +740,7 @@ describe('game flow', function() {
         "isRandom": false,
         "fameCards": { "The Chinatown Connection": 3 },
         "aiDifficulty": AIDifficulty.None,
-        "turnMaxSec": 60
+        "turnMaxSec": 7
       }).then(
         function(entity) {
           game.id = entityGameId(entity);
@@ -765,7 +765,23 @@ describe('game flow', function() {
     makeTurn("Bob",   game, "allow", turnNumber++);
     makeTurn("Carol", game, "allow", turnNumber++);
 
+    listGames("Alice", [game],
+      "should return the game in the list of active games for Alice",
+      function(games) {
+        games.should.have.length(1);
+        game.id.should.equal(games[0].objectId);
+      }
+    );
+
     leaveGame("Alice", game);
+
+    listGames("Alice", [game],
+      "should remove the game from the list of active games for Alice",
+      function(games) {
+        games.should.have.length(0);
+      }
+    );
+
     leaveGame("Alice", game, "should not allow Alice to leave the game twice", resultShouldError);
 
     makeTurn("Alice", game, "deny", turnNumber);
@@ -776,6 +792,30 @@ describe('game flow', function() {
     leaveGame("Bob", game);
     leaveGame("Bob", game, "should not allow Bob to leave the game twice", resultShouldError);
     joinGame("Bob", game, "should not allow Bob to rejoin", resultShouldError);
+
+    it("should keep the game alive with one player left", function() {
+      return parseCall(null, "debugGame", {
+        gameId: game.id
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.state.should.equal(GameState.Running);
+        }
+      );
+    });
+
+    leaveGame("Carol", game);
+
+    it("should end the game after the last player leaves", function() {
+      return parseCall(null, "debugGame", {
+        gameId: game.id
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.state.should.equal(GameState.Ended);
+        }
+      );
+    });
 
   });
 

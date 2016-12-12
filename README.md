@@ -34,17 +34,17 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [X] ~~*Fame card per-card counts*~~
 * [ ] Add end game condition flag on game turn call
 	* [X] ~~*End the game*~~
-	* [ ] Send the save to all players (via push notifications?)
+	* [X] ~~*Send the save to all players (via push notifications?)*~~
 * [X] ~~*AI difficulty instead of number*~~
 * [X] ~~*Fix maxSlots so it includes AI*~~
 * [X] ~~*Allow start game by creator after manual timeout as long as two people are in it*~~
 	* [X] ~~*Game starts automatically after the auto timeout (or ends if it has less than 2 players in it)*~~
 * [X] ~~*Join via link*~~
 	* [X] ~~*Add test to getInvite*~~
-* [ ] Leave game
+* [X] ~~*Leave game*~~
 	* [X] ~~*Inactivates player*~~
 	* [X] ~~*Transitions to next player if leaver was current player*~~
-	* [ ] Game ends if <= 1 person remains?
+	* [X] ~~*Game ends if <= 1 person remains?*~~
 * [X] ~~*List turns / get last turn*~~
 * [ ] Setup push notifications
 	* [X] ~~*Android*~~
@@ -61,7 +61,7 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [X] ~~*Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips*~~
 	* [X] ~~*Don't skip if the turn was made + tests*~~
 	* [ ] Timeout timing out?
-* [ ] Add test for listGames not returning a game a player has left
+* [X] ~~*Add test for listGames not returning a game a player has left*~~
 * [X] ~~*Clean up responses so they don't contain too much stuff*~~
 * [ ] Replace defaultError with semantic errors
 * [ ] Index functions to cloud code with master key

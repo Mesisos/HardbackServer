@@ -31,6 +31,7 @@ function addJob(name, config) {
   
   var job = jobs.create(name, config);
   if (delay !== undefined) job.delay(delay);
+  job.removeOnComplete(true);
   job.save(function(err) {
     if (err) {
       promise.reject(err);
@@ -110,16 +111,21 @@ jobs.process('game turn timeout', 10, function(job, done) {
       function(nextPlayer) {
         job.log("Next player: " + (nextPlayer ? nextPlayer.id : "N/A"));
         if (nextPlayer) {
-          done();
+          return Promise.resolve();
         } else {
-          done(new Error("Unable to transition game to next player"));
+          return Promise.reject(new Error("Unable to transition game to next player"));
         }
+      }
+    ).then(
+      function() {
+        job.log("Done");
+        done();
       },
       function(err) {
+        job.log(err.toString());
         done(err);
       }
-    )
-
+    );
 });
 
 jobs.process('game lobby timeout', 10, function(job, done) {
@@ -861,6 +867,7 @@ Parse.Cloud.define("leaveGame", function(req, res) {
   
   var leaver;
   var game;
+  var currentLeft;
   var gameQuery = new Query(Game);
   gameQuery
     .get(gameId)
@@ -882,26 +889,18 @@ Parse.Cloud.define("leaveGame", function(req, res) {
         if (!player) return Promise.reject("Unable to leave game, user not in game.");
         leaver = player;
         player.set("state", PlayerState.Inactive);
-        return player.save();
+        
+        currentLeft = game.get("currentPlayer").id == player.id;
+
+        return Promise.when(
+          player.save(),
+          currentLeft ?
+            gameNextPlayer(game) :
+            Promise.resolve(player)
+        );
       }
     ).then(
-      function(player) {
-        if (game.get("currentPlayer").id == player.id) {
-          return findNextPlayer(game);
-        }
-        return Promise.resolve(player);
-      }
-    ).then(
-      function(player) {
-        if (!player) return Promise.reject("Unable to transition to next player.");
-        if (game.get("currentPlayer").id != player.id) {
-          game.set("currentPlayer", player);
-          return game.save();
-        }
-        return Promise.resolve(game);
-      }
-    ).then(
-      function(game) {
+      function(player, nextPlayer) {
         respond(res, {
           left: true,
           player: leaver
@@ -1254,6 +1253,14 @@ function prepareTurn(game, player, previousTurn) {
   return Promise.when(pushPromise, jobPromise);
 }
 
+/**
+ * Transitions the game to the next player.
+ * 
+ * @param game      The game to transition.
+ * @param lastTurn  The turn to include with the message to the next player.
+ *                  Optional, retrieves the latest turn if undefined.
+ * @param final     Specifies whether the turn was final (game ending) or not.
+ */
 function gameNextPlayer(game, lastTurn, final) {
 
   var nextPlayer;
@@ -1263,7 +1270,12 @@ function gameNextPlayer(game, lastTurn, final) {
       nextPlayer = np;
       game.increment("turn");
       game.set("currentPlayer", nextPlayer);
-      if (final) game.set("state", GameState.Ended);
+
+      // `nextPlayer` can be null either on the final turn or with no
+      // active players left in the game.
+      if (!nextPlayer) game.set("state", GameState.Ended);
+
+      var turnTimeoutRemovalPromise = removeJob(game.get("turnTimeoutJob"));
 
       var turnPromise;
       if (lastTurn) {
@@ -1276,13 +1288,18 @@ function gameNextPlayer(game, lastTurn, final) {
           .first();
       }
 
-      var configPromise = Parse.Object.fetchAllIfNeeded([game.get("config")]);
+      var configPromise;
+      if (nextPlayer) {
+        configPromise = Parse.Object.fetchAllIfNeeded([game.get("config")]);
+      } else {
+        configPromise = Promise.resolve();
+      }
 
-      return Promise.when(game.save(), turnPromise, configPromise);
+      return Promise.when(game.save(), turnPromise, configPromise, turnTimeoutRemovalPromise);
     }
   ).then(
-    function(g, turn, configResults) {
-      if (!final) {
+    function(g, turn, configResults, turnTimeoutJob) {
+      if (nextPlayer) {
         return prepareTurn(game, nextPlayer, turn);
       }
       return Promise.resolve();
@@ -1331,8 +1348,7 @@ Parse.Cloud.define("gameTurn", function(req, res) {
 
         return Promise.when(
           turn.save(),
-          gameNextPlayer(game, turn, final),
-          removeJob(game.get("turnTimeoutJob"))
+          gameNextPlayer(game, turn, final)
         );
       }
     ).then(
@@ -1365,23 +1381,28 @@ Parse.Cloud.define("gameTurn", function(req, res) {
 
 // DONE get next player by date
 // DONE wrap if no newer player found by getting the oldest player
-// TODO check player state (active, not disconnected, etc.)
+// DONE check player state (active, not disconnected, etc.)
 // DONE make sure that empty results due to player state or otherwise
 //      don't put the next player search into a frenzy or loop, add tests?
-function findNextPlayer(game) {
-  var promise = new Promise();
 
+/**
+ * Finds the player that should have the next turn from oldest to newest.
+ * For only one player it always returns that player.
+ * If no player was found (i.e. the game has no active players) it returns null.
+ * 
+ * Returns a promise with either a fulfilled player value (or null) or rejected
+ * with an error. 
+ */
+function findNextPlayer(game) {
   var currentPlayer = game.get("currentPlayer");
   if (!currentPlayer) {
-    promise.reject("Unable to find next player, no current player");
-    return;
+    return Promise.reject("Unable to find next player, no current player");
   }
 
   // console.log("Current player created at:\n ", currentPlayer.createdAt);
 
   function getNextPlayerQuery() {
     var query = new Query(Player);
-    query.notEqualTo("objectId", currentPlayer.id);
     query.equalTo("game", game);
     query.equalTo("state", PlayerState.Active);
     query.addAscending("createdAt");
@@ -1392,31 +1413,20 @@ function findNextPlayer(game) {
   
   query = getNextPlayerQuery();
   query.greaterThanOrEqualTo("createdAt", currentPlayer.createdAt);
+  query.notEqualTo("objectId", currentPlayer.id);
 
-  query.first().then(
+  return query.first().then(
     function(nextPlayer) {
       if (nextPlayer) {
         // console.log("Next newer player created at:\n ", nextPlayer.createdAt);
-        promise.resolve(nextPlayer);
+        return Promise.resolve(nextPlayer);
       } else {
         query = getNextPlayerQuery();
         query.limit(1);
         return query.first();
       }
     }
-  ).then(
-    function(nextPlayer) {
-      if (nextPlayer) {
-        // console.log("Back to oldest player created at:\n ", nextPlayer.createdAt);
-        promise.resolve(nextPlayer);
-      } else {
-        promise.reject("Unable to find next player");
-      }
-    },
-    promise.reject
   );
-
-  return promise;
 }
 
 
