@@ -28,6 +28,19 @@ var logins = [
 ];
 var tokens = {};
 
+
+var messageById = {
+  "-1": "unspecified, please fix test"
+};
+for (var messageName in constants.t) {
+  var message = constants.t[messageName];
+  if (isNaN(message.id)) throw new Error("Invalid message: " + message);
+  var inMap = messageById[message.id];
+  if (inMap) throw new Error("Message ID for " + messageName + " already in use by " + inMap);
+  messageById[message.id] = messageName;
+}
+
+
 function requestLogin(username, password) {    
   return client({
     path: urlParse + "login" +
@@ -43,21 +56,23 @@ function requestLogin(username, password) {
   });
 }
 
-function parseCall(username, funcname, payload) {
+function parseCall(auth, funcname, payload) {
 
   var headers = {
     "Content-Type": "application/json",
     "X-Parse-Application-Id": appId
   }
 
-  if (username) {
-    var token = tokens[username];
+  if (typeof(auth) == 'string') {
+    var token = tokens[auth];
     if (typeof(token) != "string" || token === "") {
-      return Promise.reject(new Error("Token missing for " + username));
+      return Promise.reject(new Error("Token missing for " + auth));
     }
     headers["X-Parse-Session-Token"] = token;
-  } else {
-    headers["X-Parse-Master-Key"] = masterKey;
+  } else if (auth && typeof(auth) == 'object') {
+    if (auth.useMasterKey) {
+      headers["X-Parse-Master-Key"] = masterKey;
+    }
   }
 
   return client({
@@ -70,12 +85,63 @@ function parseCall(username, funcname, payload) {
   });
 }
 
-function entityResult(entity) {
+function parseError(message) {
+  return (function(entity) {
+    entityError(entity, message);
+  });
+}
+
+
+function entityResult(entity, message) {
   if (typeof(entity.error) == 'string') should.not.exist(entity.error);
   if (entity.error) should.not.exist(entity.error.message);
   if (entity.code) should.not.exist(entity.message);
   entity.should.have.property("result");
+  if (message) {
+    entity.result.code.should.equal(message.id);
+  }
   return entity.result;
+}
+
+function entityError(entity, message) {
+  if (!message.id) throw new Error("Invalid message provided");
+
+  // Cloud Code Error Code
+  
+  if (entity.result) {
+    var unexpected = messageById[entity.result.code];
+    should.not.exist(unexpected);
+  }
+
+  entity.should.have.property("code");
+  entity.code.should.equal(141);
+
+  entity.should.have.property("error");
+  
+  var error = entity.error;
+  error.should.be.an("object");
+
+  error.should.have.property("message");
+  error.message.should.be.a("string");
+  
+  error.should.have.property("code");
+  error.code.should.be.a("number");
+
+  var expected = messageById[message.id];
+  expected = expected ? expected + " (" + message.id + ")" : message.id;
+
+  var actual = messageById[error.code];
+  if (!actual && error.code >= 1999 && error.code < 3000) {
+    actual = "ParseError";
+    actual = actual + " (2/" + (error.code - 2000) + ")";
+  } else {
+    actual = actual ? actual + " (" + error.code + ")" : error.code;
+  }
+
+  var msg = "Expected " + actual + " to equal " + expected;
+  error.code.should.equal(message.id, msg);
+
+  error.should.not.have.property("error");
 }
 
 function entityGameId(entity) {
@@ -142,11 +208,17 @@ function getUserSessions() {
 }
 
 function joinGameCheck(entity) {
-  entityResult(entity).should.have.deep.property("player.objectId");
+  entityResult(entity, constants.t.GAME_JOINED)
+    .should.have.deep.property("player.objectId");
 }
 
-function resultShouldError(entity) {
-  entity.should.have.deep.property("error");
+function resultShouldError(message) {
+  if (!message.id) {
+    resultShouldError({ id: -1 })(message);
+  }
+  return (function(entity) {
+    entityError(entity, message);
+  });
 }
 
 function joinGame(name, game, desc, playerFunc) {
@@ -171,7 +243,7 @@ function leaveGame(name, game, desc, playerFunc) {
     }).then(
       function(entity) {
         if (playerFunc) playerFunc(entity);
-        else entityResult(entity).left.should.equal(true);
+        else entityResult(entity, constants.t.GAME_LEFT);
       }
     );
   });
@@ -203,8 +275,9 @@ function internalStartGame(name, game, desc, customFunc, delay) {
       function(entity) {
         if (customFunc) customFunc(entity);
         else {
-          joinGameCheck(entity);
-          entityResult(entity).game.state.should.equal(GameState.Running);
+          var result = entityResult(entity, constants.t.GAME_STARTED);
+          result.should.have.deep.property("player.objectId");
+          result.game.state.should.equal(GameState.Running);
         }
       }
     );
@@ -225,7 +298,7 @@ function listGames(name, games, desc, testFunc) {
     if (games) req.gameIds = games.map(function(game) { return game.id; });
     return parseCall(name, "listGames", req).then(
       function(entity) {
-        var result = entityResult(entity);
+        var result = entityResult(entity, constants.t.GAME_LIST);
         result.should.have.property("games");
         result.games.should.be.an("array");
         testFunc(result.games);
@@ -243,7 +316,12 @@ function getGame(name, game, desc, testFunc) {
 }
 
 function makeTurn(name, game, type, turnNumber) {
-  it('should ' + type + ' game turn by ' + name, function() {
+  var msg;
+  switch (type) {
+    case "invalid": msg = "get invalid state for"; break;
+    default: msg = type;
+  }
+  it('should ' + msg + ' game turn by ' + name, function() {
     return parseCall(name, "gameTurn", {
       gameId: game.id,
       state: "turn " + turnNumber,
@@ -252,19 +330,19 @@ function makeTurn(name, game, type, turnNumber) {
       function(entity) {
         switch (type) {
           case "allow":
-            entity.should.have.deep.property("result.saved");
-            entity.result.saved.should.equal(true);
+            entityResult(entity, constants.t.TURN_SAVED);
             break;
           
+          case "invalid":
+            entityError(entity, constants.t.GAME_INVALID_STATE);
+            break;
+
           case "deny":
-            entity.should.have.property("code");
-            entity.code.should.equal(141);
+            entityError(entity, constants.t.TURN_NOT_IT);
             break;
 
           case "finish":
-            var result = entityResult(entity);
-            result.should.have.property("saved");
-            result.saved.should.equal(true);
+            var result = entityResult(entity, constants.t.TURN_SAVED);
             result.should.have.property("ended");
             result.ended.should.equal(true);
             break;
@@ -305,14 +383,53 @@ function checkDeletedJob(id) {
 }
 
 
+describe('public', function() {
+  describe('name check', function() {
+
+    it("should return false for existing name", function() {
+      return parseCall(null, "checkNameFree", {
+        displayName: "Ally"
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.available.should.equal(false);
+        }
+      );
+    });
+
+    it("should return true for a free name", function() {
+      return parseCall(null, "checkNameFree", {
+        displayName: "ThisDisplayNameShouldRemainFree"
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.available.should.equal(true);
+        }
+      );
+    });
+
+    it("should error on missing parameter", function() {
+      return parseCall(null, "checkNameFree", {}).then(
+        parseError(constants.t.INVALID_PARAMETER)
+      );
+    });
+
+    it("should error on empty name", function() {
+      return parseCall(null, "checkNameFree", {
+        displayName: ""
+      }).then(
+        parseError(constants.t.INVALID_PARAMETER)
+      );
+    });
+
+  });
+});
+
 
 describe('game flow', function() {
   before(getUserSessions);
 
   describe('two user game', function() {
-    // this.timeout(4000);
-
-
 
     var gameByName = {};
     var game = {};
@@ -327,7 +444,7 @@ describe('game flow', function() {
       }).then(
         function(entity) {
           game.id = entityGameId(entity);
-          var result = entityResult(entity);
+          var result = entityResult(entity, constants.t.GAME_CREATED);
           result.game.state.should.equal(GameState.Lobby);
 
           var config = result.game.config;
@@ -348,7 +465,7 @@ describe('game flow', function() {
         "gameId": game.id
       }).then(
         function(entity) {
-          var result = entityResult(entity);
+          var result = entityResult(entity, constants.t.GAME_INVITE);
           result.should.have.property("link");
           game.invite = result.link;
           result.should.have.deep.property("invite.objectId");
@@ -363,7 +480,7 @@ describe('game flow', function() {
         "gameId": game.id
       }).then(
         function(entity) {
-          var result = entityResult(entity);
+          var result = entityResult(entity, constants.t.GAME_INVITE);
           result.should.have.property("link");
           result.link.should.equal(game.invite);
         }
@@ -377,11 +494,15 @@ describe('game flow', function() {
       game.turn.should.equal(0);
     });
 
-    makeTurn("Alice", game, "deny");
-    makeTurn("Bob",   game, "deny");
-    makeTurn("Carol", game, "deny");
+    makeTurn("Alice", game, "invalid");
+    makeTurn("Bob",   game, "invalid");
+    makeTurn("Carol", game, "invalid");
 
-    joinGame("Alice", game, "should fail joining Alice as it's her game", resultShouldError);
+    joinGame("Alice", game,
+      "should fail joining Alice as it's her game",
+      resultShouldError(constants.t.PLAYER_ALREADY_IN_GAME)
+    );
+    
     joinGame("Bob", game);
 
     getGame("Alice", game, '', function(game) {
@@ -389,7 +510,10 @@ describe('game flow', function() {
       game.turn.should.equal(0);
     });
 
-    joinGame("Carol", game, "should fail joining Carol as the game is running", resultShouldError);
+    joinGame("Carol", game,
+      "should fail joining Carol as the game is running",
+      resultShouldError(constants.t.GAME_INVALID_STATE)
+    );
 
     it('creates another game with Bob', function() {
       return parseCall("Bob", "createGame", {
@@ -424,11 +548,7 @@ describe('game flow', function() {
         gameId: game.id,
         limit: 100,
         skip: 0
-      }).then(
-        function(entity) {
-          resultShouldError(entity);
-        }
-      );
+      }).then(resultShouldError(constants.t.TURN_THIRD_PARTY));
     });
 
     it('gets the latest turn with Alice', function() {
@@ -537,10 +657,10 @@ describe('game flow', function() {
       game.turn.should.equal(7);
     });
 
-    makeTurn("Alice", game, "deny");
-    makeTurn("Bob",   game, "deny");
-    makeTurn("Carol", game, "deny");
-    makeTurn("Dan",   game, "deny");
+    makeTurn("Alice", game, "invalid");
+    makeTurn("Bob",   game, "invalid");
+    makeTurn("Carol", game, "invalid");
+    makeTurn("Dan",   game, "invalid");
 
   });
 
@@ -565,7 +685,7 @@ describe('game flow', function() {
       return parseCall("Bob", "findGames", {
       }).then(
         function(entity) {
-          var result = entityResult(entity);
+          var result = entityResult(entity, constants.t.GAME_LIST);
           result.should.have.property("games");
           result.games.should.have.length(0);
         }
@@ -581,7 +701,7 @@ describe('game flow', function() {
         "turnMaxSec": 60
       }).then(
         function(entity) {
-          var gameInfo = entityResult(entity);
+          var gameInfo = entityResult(entity, constants.t.GAME_CREATED);
           gameInfo.should.have.property("game");
           gameInfos.push(gameInfo);
         }
@@ -596,7 +716,7 @@ describe('game flow', function() {
       return parseCall("Bob", "findGames", {
       }).then(
         function(entity) {
-          var result = entityResult(entity);
+          var result = entityResult(entity, constants.t.GAME_LIST);
           should.not.exist(result.playerCount);
           result.should.have.property("games");
           var games = result.games;
@@ -616,7 +736,7 @@ describe('game flow', function() {
         "limit": 3
       }).then(
         function(entity) {
-          var result = entityResult(entity);
+          var result = entityResult(entity, constants.t.GAME_LIST);
           should.not.exist(result.playerCount);
           result.should.have.property("games");
           var games = result.games;
@@ -637,7 +757,7 @@ describe('game flow', function() {
         "skip": 3
       }).then(
         function(entity) {
-          var result = entityResult(entity);
+          var result = entityResult(entity, constants.t.GAME_LIST);
           should.not.exist(result.playerCount);
           result.should.have.property("games");
           var games = result.games;
@@ -659,7 +779,7 @@ describe('game flow', function() {
         "skip": 1,
       }).then(
         function(entity) {
-          var result = entityResult(entity);
+          var result = entityResult(entity, constants.t.GAME_LIST);
           should.not.exist(result.playerCount);
           result.should.have.property("games");
           var games = result.games;
@@ -674,9 +794,13 @@ describe('game flow', function() {
     });
 
     joinGame("Bob", gameToJoin, "should try joining the found game with Bob");
-    joinGame("Bob", gameToJoin, "should not be able to join twice", resultShouldError);
+    joinGame("Bob", gameToJoin,
+      "should not be able to join twice",
+      resultShouldError(constants.t.PLAYER_ALREADY_IN_GAME)
+    );
 
   });
+
 
   describe("start game", function() {
 
@@ -715,17 +839,45 @@ describe('game flow', function() {
 
     joinGame("Bob", game);
     
-    startGame("Alice", game, 'should not allow Alice to start the game already', resultShouldError);
-    startGame("Bob", game, 'should not allow Bob to start the game already', resultShouldError);
-    startGame("Bob", nonstarterGame, 'should not allow Bob to start a game with just himself', resultShouldError);
-    
-    waitAndStartGame("Bob", game, 'should not allow a non-creator to start the game', resultShouldError);
-    waitAndStartGame("Alice", game, 'should allow Alice to start the game after the timeout');
-    waitAndStartGame("Bob", game, 'should not allow Bob to start the game after Alice', resultShouldError);
-    waitAndStartGame("Alice", game, 'should not allow Alice to start the game twice', resultShouldError);
-    
-    waitAndStartGame("Bob", nonstarterGame, 'should not allow Bob to start a game with just himself even after timeout', resultShouldError);
+    startGame("Alice", game,
+      'should not allow Alice to start the game already',
+      resultShouldError(constants.t.GAME_NOT_STARTABLE)
+    );
 
+    startGame("Bob", game,
+      'should not allow Bob to start the Alice game',
+      resultShouldError(constants.t.GAME_THIRD_PARTY)
+    );
+
+    startGame("Bob", nonstarterGame,
+      'should not allow Bob to start his game already',
+      resultShouldError(constants.t.GAME_NOT_STARTABLE)
+    );
+    
+    waitAndStartGame("Bob", nonstarterGame,
+      'should not allow Bob to start a game with just himself',
+      resultShouldError(constants.t.GAME_INSUFFICIENT_PLAYERS)
+    );
+    
+    waitAndStartGame("Bob", game,
+      'should not allow a non-creator to start the game',
+      resultShouldError(constants.t.GAME_THIRD_PARTY)
+    );
+
+    waitAndStartGame("Alice", game,
+      'should allow Alice to start the game after the timeout'
+    );
+    
+    waitAndStartGame("Bob", game,
+      'should not allow Bob to start the game after Alice',
+      resultShouldError(constants.t.GAME_THIRD_PARTY)
+    );
+
+    waitAndStartGame("Alice", game,
+      'should not allow Alice to start the game twice',
+      resultShouldError(constants.t.GAME_NOT_STARTABLE)
+    );
+    
   });
 
 
@@ -748,7 +900,11 @@ describe('game flow', function() {
       );
     });
 
-    leaveGame("Bob", game, "should not allow Bob to leave a game he's not in", resultShouldError);
+    leaveGame("Bob", game,
+      "should not allow Bob to leave a game he's not in",
+      resultShouldError(constants.t.PLAYER_NOT_IN_GAME)
+    );
+
     joinGame("Bob", game);
     joinGame("Carol", game);
 
@@ -764,6 +920,7 @@ describe('game flow', function() {
     makeTurn("Alice", game, "allow", turnNumber++);
     makeTurn("Bob",   game, "allow", turnNumber++);
     makeTurn("Carol", game, "allow", turnNumber++);
+    
 
     listGames("Alice", [game],
       "should return the game in the list of active games for Alice",
@@ -772,6 +929,7 @@ describe('game flow', function() {
         game.id.should.equal(games[0].objectId);
       }
     );
+
 
     leaveGame("Alice", game);
 
@@ -782,19 +940,32 @@ describe('game flow', function() {
       }
     );
 
-    leaveGame("Alice", game, "should not allow Alice to leave the game twice", resultShouldError);
+
+    leaveGame("Alice", game,
+      "should not allow Alice to leave the game twice",
+      resultShouldError(constants.t.PLAYER_NOT_IN_GAME)
+    );
 
     makeTurn("Alice", game, "deny", turnNumber);
     makeTurn("Carol", game, "deny", turnNumber);
     makeTurn("Bob",   game, "allow", turnNumber++);
 
-    joinGame("Alice", game, "should not allow Alice to rejoin", resultShouldError);
+    joinGame("Alice", game,
+      "should not allow Alice to rejoin",
+      resultShouldError(constants.t.GAME_INVALID_STATE)
+    );
     leaveGame("Bob", game);
-    leaveGame("Bob", game, "should not allow Bob to leave the game twice", resultShouldError);
-    joinGame("Bob", game, "should not allow Bob to rejoin", resultShouldError);
+    leaveGame("Bob", game,
+      "should not allow Bob to leave the game twice",
+      resultShouldError(constants.t.PLAYER_NOT_IN_GAME)
+    );
+    joinGame("Bob", game,
+      "should not allow Bob to rejoin",
+      resultShouldError(constants.t.GAME_INVALID_STATE)
+    );
 
     it("should keep the game alive with one player left", function() {
-      return parseCall(null, "debugGame", {
+      return parseCall({ useMasterKey: true }, "debugGame", {
         gameId: game.id
       }).then(
         function(entity) {
@@ -807,7 +978,7 @@ describe('game flow', function() {
     leaveGame("Carol", game);
 
     it("should end the game after the last player leaves", function() {
-      return parseCall(null, "debugGame", {
+      return parseCall({ useMasterKey: true }, "debugGame", {
         gameId: game.id
       }).then(
         function(entity) {
@@ -850,7 +1021,7 @@ describe("contacts", function() {
         return parseCall(name, "listFriends", {
         }).then(
           function(entity) {
-            var result = entityResult(entity);
+            var result = entityResult(entity, constants.t.CONTACT_LIST);
             result.should.have.property("contacts");
             var contacts = result.contacts;
             if (nobody) {
@@ -872,7 +1043,6 @@ describe("contacts", function() {
             }
 
             if (done) done(contacts);
-
           }
         );
       });
@@ -917,8 +1087,7 @@ describe("contacts", function() {
         userId: bobId
       }).then(
         function(entity) {
-          entity.should.have.deep.property("result.deleted");
-          entity.result.deleted.should.equal(true);
+          entityResult(entity, constants.t.CONTACT_DELETED);
         }
       );
     });
@@ -970,7 +1139,7 @@ describe("kue", function() {
         }
       ).then(
         function(entity) {
-          var result = entityResult(entity);
+          var result = entityResult(entity, constants.t.GAME_LIST);
           result.should.have.property("games");
           result.games.should.be.an("array");
           result.games.should.have.length(1);
@@ -1006,7 +1175,7 @@ describe("kue", function() {
     joinGame("Bob", game);
 
     it("should get deleted after game starts", function() {
-      return parseCall(null, "debugGame", {
+      return parseCall({ useMasterKey: true }, "debugGame", {
         gameId: game.id
       }).then(
         function(entity) {
@@ -1037,7 +1206,7 @@ describe("kue", function() {
     joinGame("Bob", game);
 
     it('sets job id in game', function() {
-      return parseCall(null, "debugGame", {
+      return parseCall({ useMasterKey: true }, "debugGame", {
         gameId: game.id
       }).then(
         function(entity) {
@@ -1064,7 +1233,7 @@ describe("kue", function() {
     });
 
     it('sets new job id in game', function() {
-      return parseCall(null, "debugGame", {
+      return parseCall({ useMasterKey: true }, "debugGame", {
         gameId: game.id
       }).then(
         function(entity) {
@@ -1087,7 +1256,7 @@ describe("kue", function() {
 
       return promise.then(
         function() {
-          return parseCall(null, "debugGame", {
+          return parseCall({ useMasterKey: true }, "debugGame", {
             gameId: game.id
           });
         }
@@ -1106,7 +1275,7 @@ describe("kue", function() {
     makeTurn("Bob", game, "finish", turnNumber++);
 
     it('should be different after a few turns', function() {
-      return parseCall(null, "debugGame", {
+      return parseCall({ useMasterKey: true }, "debugGame", {
         gameId: game.id
       }).then(
         function(entity) {
@@ -1146,7 +1315,7 @@ describe("kue", function() {
     joinGame("Bob", game);
 
     it('should be running', function() {
-      return parseCall(null, "debugGame", {
+      return parseCall({ useMasterKey: true }, "debugGame", {
         gameId: game.id
       }).then(
         function(entity) {
@@ -1169,7 +1338,7 @@ describe("kue", function() {
     makeTurn("Bob", game, "allow", turnNumber++);
 
     it('should still be running', function() {
-      return parseCall(null, "debugGame", {
+      return parseCall({ useMasterKey: true }, "debugGame", {
         gameId: game.id
       }).then(
         function(entity) {
@@ -1195,7 +1364,7 @@ describe("kue", function() {
 
       return promise.then(
         function() {
-          return parseCall(null, "debugGame", {
+          return parseCall({ useMasterKey: true }, "debugGame", {
             gameId: game.id
           });
         }
@@ -1207,10 +1376,6 @@ describe("kue", function() {
       )
     });
 
-
-
-
   });
-
 
 });

@@ -11,6 +11,7 @@ var path = require('path');
 var util = require('util');
 var humanTime = require('human-time');
 var kue = require('kue')
+var constants = require('./cloud/constants.js');
 
 var databaseUri = process.env.DATABASE_URI || process.env.MONGODB_URI;
 
@@ -98,6 +99,18 @@ app.get('/join/:inviteId', function(req, res) {
 });
 
 if (process.env.TESTING === "true") {
+
+  console.log("Power On Self Test");
+  var idMap = {};
+  for (var messageName in constants.t) {
+    var message = constants.t[messageName];
+    if (isNaN(message.id)) throw new Error("Invalid message: " + message);
+    var inMap = idMap[message.id];
+    if (inMap) throw new Error("Message ID for " + messageName + " already in use by " + inMap);
+    idMap[message.id] = messageName;
+  }
+  delete idMap;
+
 
   // Start the kue job queue UI
   kue.app.listen(3000);
@@ -229,10 +242,6 @@ if (process.env.TESTING === "true") {
   });
 
 }
-
-
-// })
-
 
 
 var port = process.env.PORT;

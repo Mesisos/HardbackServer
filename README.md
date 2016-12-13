@@ -17,60 +17,61 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [X] ~~*Add beforeSave to avoid duplicate display names*~~
 * [X] ~~*Add contacts on join game*~~
 * [X] ~~*Handle game state*~~
-	* [X] ~~*Init*~~
-	* [X] ~~*Lobby*~~
-	* [X] ~~*Running*~~
-	* [X] ~~*Ended*~~
+  * [X] ~~*Init*~~
+  * [X] ~~*Lobby*~~
+  * [X] ~~*Running*~~
+  * [X] ~~*Ended*~~
 * [X] ~~*Go over questions and add missing tasks*~~
 * [X] ~~*Request random game*~~
-	* [X] ~~*Find a game*~~
-	* [X] ~~*Join game*~~
-	* [X] ~~*Create game if no random exists*~~
-	* [X] ~~*Actually don't create a game and just return failure*~~
-	* [X] ~~*Just return a list of available random games?*~~
-	* [X] ~~*Possible paging via date offset and number limit*~~
-	* [X] ~~*Add the capability of joining into multiple lobbies (it shouldn't try joining in a game it's already in)*~~
+  * [X] ~~*Find a game*~~
+  * [X] ~~*Join game*~~
+  * [X] ~~*Create game if no random exists*~~
+  * [X] ~~*Actually don't create a game and just return failure*~~
+  * [X] ~~*Just return a list of available random games?*~~
+  * [X] ~~*Possible paging via date offset and number limit*~~
+  * [X] ~~*Add the capability of joining into multiple lobbies (it shouldn't try joining in a game it's already in)*~~
 * [X] ~~*Look into Loom integration*~~
 * [X] ~~*Fame card per-card counts*~~
-* [ ] Add end game condition flag on game turn call
-	* [X] ~~*End the game*~~
-	* [X] ~~*Send the save to all players (via push notifications?)*~~
+* [X] ~~*Add end game condition flag on game turn call*~~
+  * [X] ~~*End the game*~~
+  * [X] ~~*Send the save to all players (via push notifications?)*~~
 * [X] ~~*AI difficulty instead of number*~~
 * [X] ~~*Fix maxSlots so it includes AI*~~
 * [X] ~~*Allow start game by creator after manual timeout as long as two people are in it*~~
-	* [X] ~~*Game starts automatically after the auto timeout (or ends if it has less than 2 players in it)*~~
+  * [X] ~~*Game starts automatically after the auto timeout (or ends if it has less than 2 players in it)*~~
 * [X] ~~*Join via link*~~
-	* [X] ~~*Add test to getInvite*~~
+  * [X] ~~*Add test to getInvite*~~
 * [X] ~~*Leave game*~~
-	* [X] ~~*Inactivates player*~~
-	* [X] ~~*Transitions to next player if leaver was current player*~~
-	* [X] ~~*Game ends if <= 1 person remains?*~~
+  * [X] ~~*Inactivates player*~~
+  * [X] ~~*Transitions to next player if leaver was current player*~~
+  * [X] ~~*Game ends if <= 1 person remains?*~~
 * [X] ~~*List turns / get last turn*~~
 * [ ] Setup push notifications
-	* [X] ~~*Android*~~
-	* [ ] iOS
+  * [X] ~~*Android*~~
+  * [ ] iOS
 * [ ] Push notifications for events
-	* [X] ~~*Start game (after `joinGame` or `startGame`): send the game state to all players*~~
-	* [X] ~~*Game turn: send the turn to the next player*~~
-	* [X] ~~*Final game turn to all the players*~~
-	* [ ] Replace all alerts with templates from constants
-	* [ ] Add push notification expiration dates
-	* [ ] ? On/near game start timeout
-	* [ ] ? On/near turn timeout
-	* [ ] ? Join game
-	* [ ] ? Leave game
+  * [X] ~~*Start game (after `joinGame` or `startGame`): send the game state to all players*~~
+  * [X] ~~*Game turn: send the turn to the next player*~~
+  * [X] ~~*Final game turn to all the players*~~
+  * [X] ~~*Replace all alerts with templates from constants*~~
+  * [ ] Add push notification expiration dates
+  * [ ] ? On/near game start timeout
+  * [ ] ? On/near turn timeout
+  * [ ] ? Join game
+  * [ ] ? Leave game
 * [X] ~~*Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips*~~
-	* [X] ~~*Don't skip if the turn was made + tests*~~
-	* [X] ~~*Timeout timing out?*~~
+  * [X] ~~*Don't skip if the turn was made + tests*~~
+  * [X] ~~*Timeout timing out?*~~
 * [X] ~~*Add test for listGames not returning a game a player has left*~~
 * [X] ~~*Clean up responses so they don't contain too much stuff*~~
-* [ ] Replace defaultError with semantic errors
-	* [ ] Proper error codes!
+* [ ] Convert TODOs into tasks
+* [X] ~~*Replace defaultError with semantic errors*~~
+  * [X] ~~*Proper error codes!*~~
 * [ ] Index functions to cloud code with master key
 * [ ] Query limits?
 * [X] ~~*Filter returned User objects (listFriends etc.)*~~
 * [ ] Verify parameter validity on saving of all (most? at least Game?) objects
-	* [ ] beforeSave User?
+  * [ ] beforeSave User?
 * [ ] Analyze performance and add Mongo indexes if necessary/possible
 
 ### Someday
@@ -79,32 +80,32 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 ## Questions
 * [X] Are username and display name separate ala Steam? _Yes_
 * [X] What are friends?
-	* People you played with recently? _Yes_
-	* Can you add them manually? _Only by playing with them via link_
-	* Can you do anything with friends? _Start a game, delete them_
+  * People you played with recently? _Yes_
+  * Can you add them manually? _Only by playing with them via link_
+  * Can you do anything with friends? _Start a game, delete them_
 * [X] Does removing a friend block them and/or can you block people?
-	* _It doesn't block, but we might want blocking at some point._
+  * _It doesn't block, but we might want blocking at some point._
 * [X] How does starting a game look? API call by creator only?
-	* _I think once a game is full, it probably ought to autostart, since they aren't "live" (ie - once everyone has responded to the game request)._
-	* _The creator ought to be allowed to start the game after the timer has expired, as long as there are two people in it_
+  * _I think once a game is full, it probably ought to autostart, since they aren't "live" (ie - once everyone has responded to the game request)._
+  * _The creator ought to be allowed to start the game after the timer has expired, as long as there are two people in it_
 * [X] When does a game stop?
-	* _a game stops when a player wins :slightly_smiling_face: Probably need a call to notify of the game over condition, and then the file would be sent to all players (other than the person who ended the game).... maybe it's just a flag on the next turn call_
+  * _a game stops when a player wins :slightly_smiling_face: Probably need a call to notify of the game over condition, and then the file would be sent to all players (other than the person who ended the game).... maybe it's just a flag on the next turn call_
 * [X] Can a player leave a game before it ends?
-	* _Player leaving a game: I think a player could leave a game, at which point, they'd be replaced with an AI player.... Also, after a turn timeout (I've seen other games with turn timeouts of like 48 hours), the turn could be sent to the next player and just skip that persons turn, or we could send it with some info that says, "use an AI to play his turn"  skipping is probably easier_
-	* What happens when the creator leaves the game?
-		_I don't think it should matter - at the point the game starts, it's just round robin until it's done... creator is just another player_
+  * _Player leaving a game: I think a player could leave a game, at which point, they'd be replaced with an AI player.... Also, after a turn timeout (I've seen other games with turn timeouts of like 48 hours), the turn could be sent to the next player and just skip that persons turn, or we could send it with some info that says, "use an AI to play his turn"  skipping is probably easier_
+  * What happens when the creator leaves the game?
+    _I don't think it should matter - at the point the game starts, it's just round robin until it's done... creator is just another player_
 * [X] Which states can a game be in? E.g. [Pending, Running, Ended], anything else?
-	* _[Init, Lobby, Running, Ended]_
+  * _[Init, Lobby, Running, Ended]_
 * [X] Does max slots include AI number or not? _It does!_
 * [ ] Does the game end if < 2 people remain after players leave?
-	_If there is only one human left, the game should still send it to the last player - and then the client can ask if they want to continue the game, and if they do, can just continue it as a solo game until it's finished, and then send the result to the server..._
+  _If there is only one human left, the game should still send it to the last player - and then the client can ask if they want to continue the game, and if they do, can just continue it as a solo game until it's finished, and then send the result to the server..._
 * [ ] ~~*Request game*~~ _Replaced by findGames_
-	* [ ] Does request game search with specific config? _Probably with a limited set._
-	* [ ] Which config should it use for the lobby if no game exists? _It should probably just return a game/games instead of joining / creating automatically._
+  * [ ] Does request game search with specific config? _Probably with a limited set._
+  * [ ] Which config should it use for the lobby if no game exists? _It should probably just return a game/games instead of joining / creating automatically._
 * [ ] Invite message?
 * [ ] Custom game names / titles?
 * [ ] Can players rejoin a game they left?
-	* [ ] Can anyone else join a game after it starts?
+  * [ ] Can anyone else join a game after it starts?
 * [ ] Should display name be unique? If it's like steam, it can be whatever and the username is what really matters. Look into checkDisplayName if it should be changed/extended.
 
 ## Account
@@ -128,13 +129,54 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 
 Subject to change.
 
-All of the returned responses are wrapped in a `result` object if successful, otherwise an `error` is returned, e.g.:
+## On success
+
+All of the returned responses are wrapped in a `result` object if successful, e.g.:
 ```
 {
-	"code": 141
-	"error": "Contact not found"
+  "result": {
+    "available": true,
+    "code": 1
+  }
 }
 ```
+
+`code` is always < 1000 for successful results and it represents the response
+code for the message to allow for easier application logic. See `constants.js`
+for all the message code definitions.
+
+For brevity purposes all cloud function responses are assumed to be wrapped in
+this `result` structure. The return codes are specified as constant names,
+found in `constants.js`, to avoid multiple possibly conflicting definitions,
+with `/` separating successful and error codes.
+
+## On error
+
+If the request was unsuccessful, an error is returned, e.g.:
+```
+{
+  "code": 141,
+  "error": {
+    "message": "Contact not found.",
+    "code": 1404
+  }
+}
+```
+
+For application-level logic, the top level `code` is always `141`, meaning that
+the Cloud Code script failed. The error field also contains details about the
+failure, like a descriptive human readable `message` and a specific failure
+error `code`.
+
+The specific error code is between `1000` and `1998` for application errors,
+`1999` for "other" Parse errors and between `2000` and `2999` for specific Parse
+errors that occur in the middle of application logic. For Parse errors you can
+get the server-level error code by subtracting `2000` from the error code. 
+
+See `constants.js` for all application error definitions.
+
+For Parse server-level errors, see Parse Server documentation.
+
 
 ## Sign up with username via `REST_signupWithUsername`
 ### Request parameters
@@ -149,12 +191,32 @@ All of the returned responses are wrapped in a `result` object if successful, ot
 ### Response
 ```
 {
-	"objectId": "wL3sIcT2NA",
-	"createdAt": "2016-11-17T15:02:16.447Z",
-	"sessionToken": "r:31ba286ce8adbee3aa938f79d99d0cdc"
+  "objectId": "wL3sIcT2NA",
+  "createdAt": "2016-11-17T15:02:16.447Z",
+  "sessionToken": "r:31ba286ce8adbee3aa938f79d99d0cdc"
 }
 ```
+### Errors
+```
+{
+  "code": 200,
+  "error": "bad or missing username"
+}
+```
+```
+{
+  "code": 201,
+  "error": "password is required"
+}
 
+```
+```
+{
+  "code": 202,
+  "error": "Account already exists for this username."
+}
+
+```
 
 ## Reset password via `REST_requestPasswordReset`
 ### Request parameters
@@ -167,6 +229,19 @@ All of the returned responses are wrapped in a `result` object if successful, ot
 ```
 // Empty on success (sends password reset email)
 {}
+```
+### Errors
+```
+{
+  "code": 204,
+  "error": "you must provide an email"
+}
+```
+```
+{
+  "code": 205,
+  "error": "No user found with email test."
+}
 ```
 
 
@@ -197,59 +272,65 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ### Request
 ```
 {
-	"displayName": "name"
+  "displayName": "name"
 }
 ```
 ### Response
 ```
 {
-	"available": true|false
+  "code": AVAILABILITY / INVALID_PARAMETER,
+
+  "available": true|false
 }
 ```
+
+
 
 
 ## `createGame`
 ### Request
 ```
 {
-	// Doesn't include AI right now
-	"slotNum": 2,
+  "slotNum": 2,
 
-	"isRandom": true|false,
-	"fameCards": {
-		"The Chinatown Connection": 6,
-		"Dead Planet": 4,
-		"Vicious Triangle": 3,
-		"Lady of the West": 1
-	},
-	"aiDifficulty": 0|1|2|3,
+  "isRandom": true|false,
+  "fameCards": {
+    "The Chinatown Connection": 6,
+    "Dead Planet": 4,
+    "Vicious Triangle": 3,
+    "Lady of the West": 1
+  },
+  "aiDifficulty": 0|1|2|3,
 
-	// Doesn't do anything right now
-	"turnMaxSec": 60
+  // After this many seconds, the turn ends automatically and the game
+  // transitions to the next player
+  "turnMaxSec": 60
 }
 ```
 ### Response
 ```
 // Game join response object
 {
-	// Game object
-	"game": {
-		"objectId": "id",
-		"config": {
-			"slotNum": 2,
-			...
-		}
-		...
-	},
+  "code": GAME_CREATED,
 
-	// Number of players after the game was joined
-	"playerCount": 3,
+  // Game object
+  "game": {
+    "objectId": "id",
+    "config": {
+      "slotNum": 2,
+      ...
+    }
+    ...
+  },
 
-	// Player object of the user
-	"player": {
-		"objectId": "id",
-		...
-	}
+  // Number of players after the game was joined
+  "playerCount": 3,
+
+  // Player object of the user
+  "player": {
+    "objectId": "id",
+    ...
+  }
 }
 ```
 
@@ -258,16 +339,18 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ### Request
 ```
 {
-	"gameId": "id"
+  "gameId": "id"
 }
 ```
 ### Response
 ```
 {
-	"link": "url of the invite website",
-	"invite": {
-		"objectId": "id" // The invite ID
-	}
+  "code": GAME_INVITE / PLAYER_NOT_FOUND,
+  
+  "link": "url of the invite website",
+  "invite": {
+    "objectId": "id" // The invite ID
+  }
 }
 ```
 
@@ -276,16 +359,18 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ### Request
 ```
 {
-	"gameId": "id"
+  "gameId": "id"
 }
 ```
 ### Response
 ```
 // Game join response object (see createGame)
 {
-	"game": {...},
-	"playerCount": 3,
-	"player": {...}
+  "code": GAME_JOINED / GAME_NOT_FOUND | PLAYER_ALREADY_IN_GAME | GAME_INVALID_STATE,
+
+  "game": {...},
+  "playerCount": 3,
+  "player": {...}
 }
 ```
 
@@ -294,13 +379,14 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ### Request
 ```
 {
-	"gameId": "id"
+  "gameId": "id"
 }
 ```
 ### Response
 ```
 {
-	"left": true
+  "code": GAME_LEFT / PLAYER_NOT_IN_GAME | GAME_INVALID_STATE | GAME_NOT_FOUND,
+  "player": {...}
 }
 ```
 
@@ -309,33 +395,19 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ### Request
 ```
 {
-	// How many games to return sorted by least recent first
-	"limit": integer (default 20, min 1, max 100)
-	// How many games to skip (for pagination)
-	"skip": integer (default 0)
+  // How many games to return sorted by least recent first
+  "limit": integer (default 20, min 1, max 100)
+  // How many games to skip (for pagination)
+  "skip": integer (default 0)
 }
 ```
 ### Response
 ```
 {
-	// Game objects with `isRandom` being `true`
-	"games": [...]
-}
-```
+  "code": GAME_LIST,
 
-
-## `requestGame` (deprecated)
-### Request
-```
-{}
-```
-### Response
-```
-// Game join response object (see createGame)
-{
-	"game": {...},
-	"playerCount": 3,
-	"player": {...}
+  // Game objects with `isRandom` being `true`
+  "games": [...]
 }
 ```
 
@@ -344,30 +416,32 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ### Request
 ```
 {
-	// How many games to return sorted by most recent first
-	"limit": integer (default 20, min 1, max 100)
-	// How many games to skip (for pagination)
-	"skip": integer (default 0),
-	// Optionally filter to specific game IDs
-	"gameIds": ["idA", "idB", ...]
+  // How many games to return sorted by most recent first
+  "limit": integer (default 20, min 1, max 100)
+  // How many games to skip (for pagination)
+  "skip": integer (default 0),
+  // Optionally filter to specific game IDs
+  "gameIds": ["idA", "idB", ...]
 }
 ```
 ### Response
 ```
 {
-	"games": [
-		// Game one
-		{
-			"objectId": "idA",
-			...
-		},
-		// Game two
-		{
-			"objectId": "idB",
-			...
-		},
-		...
-	]
+  "code": GAME_LIST,
+
+  "games": [
+    // Game one
+    {
+      "objectId": "idA",
+      ...
+    },
+    // Game two
+    {
+      "objectId": "idB",
+      ...
+    },
+    ...
+  ]
 }
 ```
 
@@ -376,26 +450,28 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ### Request
 ```
 {
-	// How many contacts to return sorted by most recent first
-	"limit": integer (default 100, min 1, max 1000)
-	// How many contacts to skip (for pagination)
-	"skip": integer (default 0)
+  // How many contacts to return sorted by most recent first
+  "limit": integer (default 100, min 1, max 1000)
+  // How many contacts to skip (for pagination)
+  "skip": integer (default 0)
 }
 ```
 ### Response
 ```
 {
-	"contacts": [
-		// A lot of other info here will be stripped later
-		{
-			"displayName": "Ally",
-			"objectId": "idA",
-		},
-		{
-			"displayName": "Bobzor",
-			"objectId": "idB"
-		}
-	]
+  "code": CONTACT_LIST,
+
+  "contacts": [
+    // A lot of other info here will be stripped later
+    {
+      "displayName": "Ally",
+      "objectId": "idA",
+    },
+    {
+      "displayName": "Bobzor",
+      "objectId": "idB"
+    }
+  ]
 }
 ```
 
@@ -404,13 +480,13 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ### Request
 ```
 {
-	"userId": "id"
+  "userId": "id"
 }
 ```
 ### Response
 ```
 {
-	"deleted": true
+  "code": CONTACT_DELETED / CONTACT_NOT_FOUND
 }
 ```
 
@@ -419,16 +495,17 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ### Request
 ```
 {
-	"gameId": "id",
-	"state": "save contents",
-	"final": true|false
+  "gameId": "id",
+  "state": "save contents",
+  "final": true|false
 }
 ```
 ### Response
 ```
 {
-	"saved": true,
-	"ended": true|false
+  "code": TURN_SAVED / TURN_NOT_IT | GAME_INVALID_STATE,
+
+  "ended": true|false
 }
 ```
 
@@ -437,29 +514,31 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ### Request
 ```
 {
-	"gameId": "id",
-	// How many turns to return sorted by most recent first
-	"limit": integer (default 3, min 1, max 100)
-	// How many turns to skip (for pagination)
-	"skip": integer (default 0)
+  "gameId": "id",
+  // How many turns to return sorted by most recent first
+  "limit": integer (default 3, min 1, max 100)
+  // How many turns to skip (for pagination)
+  "skip": integer (default 0)
 }
 ```
 ### Response
 ```
 {
-	"turns": [
-		{
-			// Player object (with a User)
-			"player": {...}
-			// Turn index
-			"turn": integer
-		},
-		{
-			"player": {...}
-			"turn": integer
-		},
-		...
-	]
+  "code": TURN_LIST / TURN_THIRD_PARTY | GAME_NOT_FOUND,
+
+  "turns": [
+    {
+      // Player object (with a User)
+      "player": {...}
+      // Turn index
+      "turn": integer
+    },
+    {
+      "player": {...}
+      "turn": integer
+    },
+    ...
+  ]
 }
 ```
 
@@ -476,69 +555,69 @@ See `schema/schema.json`.
 example save game https://gist.github.com/MarkFassett/4d256c6e526d92eaba3dccab6d0d384b
 
 account flow
-	1. create account
-	2. click auth link sent to e-mail
-	3. log in with user/pass
+  1. create account
+  2. click auth link sent to e-mail
+  3. log in with user/pass
 
 pw recovery flow
-	4. request password recovery e-mail via ui
-	5. link to click to reset pw and related form
+  4. request password recovery e-mail via ui
+  5. link to click to reset pw and related form
 
 new device login
-	send notification e-mail
-	keep track of user's devices
+  send notification e-mail
+  keep track of user's devices
 
 Challenge flow
-	1. create game, set max slots
-	2. send challenge link(s) or request random players
-		if random flag set, then people can join by request random
-	3. start play when ready (min 2 players)
+  1. create game, set max slots
+  2. send challenge link(s) or request random players
+    if random flag set, then people can join by request random
+  3. start play when ready (min 2 players)
 
 Other items
-	Need push notifications to drive play
-	Should keep log of all games
+  Need push notifications to drive play
+  Should keep log of all games
 
 Ranking system
-	maybe just go by avg score due to absence of griefing/competitive scores?
-	or by deviation from group norm to normalize for the cards?
-	Or something even more or less clever...
+  maybe just go by avg score due to absence of griefing/competitive scores?
+  or by deviation from group norm to normalize for the cards?
+  Or something even more or less clever...
 
 /checkNameFree?displayName=
 
 /createAccount?user=&login=&displayname=
-	- check no obscene name
-	- check unique display name
+  - check no obscene name
+  - check unique display name
 
 /authenticate?user=&login=&deviceId=
 /recoverPassword?email=
 
 /createGame?settings=
-	get back shortlink to send to let people play with you
-	properties
-		max players
-		# of fame cards (1-16)
-		AI player count
-		??? max turn time ??? - if expired next guy is notified and runs AI for the idle player
+  get back shortlink to send to let people play with you
+  properties
+    max players
+    # of fame cards (1-16)
+    AI player count
+    ??? max turn time ??? - if expired next guy is notified and runs AI for the idle player
 
 /requestGame
-	used to join random game	
-	create a lobby if none present
-	lobbies will time out and start play to keep things going
-	potentially secret AI?
+  used to join random game  
+  create a lobby if none present
+  lobbies will time out and start play to keep things going
+  potentially secret AI?
 
 /gameTurn?gameId&state
-	Upload save game for next player and notify them it's ready
-	16kb currently
-	4 player will be couple kb more
+  Upload save game for next player and notify them it's ready
+  16kb currently
+  4 player will be couple kb more
 
 /listGames
-	get back state of all games you are involved in
+  get back state of all games you are involved in
 
 /listFriends
-	get list of all known buddies
+  get list of all known buddies
 
 /deleteFriend
-	remove friend from list
+  remove friend from list
 ```
 
 # Parse Server

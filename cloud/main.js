@@ -4,6 +4,7 @@ var moment = require('moment');
 var constants = require('./constants.js');
 var kue = require('kue');
 var JsonPropertyFilter = require("json-property-filter");
+var Mustache = require("mustache");
 
 
 GameState = constants.GameState;
@@ -19,6 +20,57 @@ var Turn = Parse.Object.extend("Turn");
 var Player = Parse.Object.extend("Player");
 var Contact = Parse.Object.extend("Contact");
 var Invite = Parse.Object.extend("Invite");
+
+// Hook into Query.get for better NOT_FOUND error messages
+var PQuery = {};
+PQuery.get = Query.prototype.get;
+Query.prototype.get = function(objectId, options) {
+  var that = this;
+  var query = PQuery.get.bind(this)(objectId, options);
+  return query.then(
+    function(result) {
+      return Promise.resolve(result);
+    },
+    function(err) {
+      if (
+          err instanceof Parse.Error &&
+          err.code == Parse.Error.OBJECT_NOT_FOUND
+        ) {
+        var notFound = null;
+        switch (that.className) {
+          case "Game":    notFound = constants.t.GAME_NOT_FOUND; break;
+          case "Player":  notFound = constants.t.PLAYER_NOT_FOUND; break;
+          case "Contact": notFound = constants.t.CONTACT_NOT_FOUND; break;
+          case "User":    notFound = constants.t.USER_NOT_FOUND; break;
+        }
+        if (notFound) return Promise.reject(new CodedError(notFound));
+      }
+      return Promise.reject(err);
+    }
+  )
+}
+
+
+/**
+ * Error subclass for coded error messages.
+ *
+ * @param {Object} message Constant message object to use.
+ * @param {Object} context Optional Mustache template "view" context object.
+ * @api protected
+ */
+function CodedError(message, context) {
+  if (context !== undefined) {
+    this.message = Mustache.render(message.m, context);
+  } else {
+    this.message = message.m;
+  }
+  this.code = message.id;
+  Error.captureStackTrace(this, CodedError);
+}
+util.inherits(CodedError, Error);
+
+
+
 
 
 // Jobs
@@ -65,8 +117,11 @@ function removeJobWithError(id) {
 }
 
 function removeJob(id) {
-  var promise = new Promise();
+  if (isNaN(Number(id))) {
+    return Promise.resolve(false);
+  }
 
+  var promise = new Promise();
   kue.Job.get(id, function(err, job) {
     if (err) {
       promise.resolve(false);
@@ -80,7 +135,6 @@ function removeJob(id) {
       promise.resolve(true);
     })
   });
-
   return promise;
 }
 
@@ -103,9 +157,7 @@ jobs.process('game turn timeout', 10, function(job, done) {
         var currentPlayer = game.get("currentPlayer");
         if (currentPlayer.id != player.id) {
           job.log("Timeout player " + player.id + " does not match current player " + currentPlayer.id);
-          return Promise.reject(new Error(
-            "Unable to time out turn due to different current player"
-          ));
+          return Promise.reject(new Error("Unable to time out turn due to different current player"));
         }
 
         var consecutiveTurnTimeouts = game.get("consecutiveTurnTimeouts");
@@ -122,12 +174,7 @@ jobs.process('game turn timeout', 10, function(job, done) {
           return Promise.when(
             null,
             game.save(),
-            notifyGame(game, {
-              alert: "Game '" + game.id + "' ran out!",
-              data: {
-                // TODO: error code
-              }
-            })
+            notifyGame(game, constants.t.GAME_INACTIVE_TIMEOUT, { game: game })
           );
         }
 
@@ -174,7 +221,7 @@ jobs.process('game lobby timeout', 10, function(job, done) {
         game = g;
 
         if (game.get("state") != GameState.Lobby) {
-          return Promise.reject("Not a lobby, skipping.");
+          return Promise.reject(new Error("Not a lobby, skipping."));
         }
 
         return getPlayerCount(game);
@@ -187,12 +234,11 @@ jobs.process('game lobby timeout', 10, function(job, done) {
 
         if (playerCount < 2) {
           job.log("Timed out");
-          notifyPlayers([game.get("currentPlayer")], {
-            alert: "Game '" + game.id + "' timed out, nobody joined!",
-            data: {
-              game: game
-            }
-          });
+          notifyPlayers(
+            [ game.get("currentPlayer") ],
+            constants.t.GAME_LOBBY_TIMEOUT,
+            { game: game }
+          );
           game.set("state", GameState.Ended)
           return game.save();
         } else {
@@ -208,88 +254,75 @@ jobs.process('game lobby timeout', 10, function(job, done) {
         done();
       },
       function(error) {
-        done(new Error(error));
+        done(error);
       }
     );
 });
 
 
 
-function defaultError(res) {
-  return (function(error) {
-    res.error(error);
-  });
+function respondError(res, error, context) {
+  if (error === undefined && context === undefined) {
+    return (function(e, c) {
+      respondError(res, e, c);
+    });
+  }
+
+  var response;
+  if (error instanceof Parse.Error) {
+    switch (error.code) {
+      case Parse.Error.SCRIPT_FAILED:
+        if (error.message !== undefined) error = error.message;
+        break;
+      default:
+        error.code = 2000 + error.code;
+    }
+  } 
+
+  if (error instanceof CodedError) {
+    response = error;
+  } else if (error.id && error.m) {
+    response = new CodedError(error, context);
+  } else {
+    response = error;
+  }
+  res.error(response);
 }
 
 function errorOnInvalidUser(user, res) {
   var invalid = !user;
-  if (invalid) res.error("User not found.");
+  if (invalid) respondError(res, constants.t.USER_NOT_FOUND);
   return invalid;
 }
 
-function errorOnInvalidGame(game, res, acceptable) {
+function checkGameState(game, acceptable) {
+  var result = {};
   if (!game) {
-    res.error("Game not found.");
-    return true;
+    result.error = constants.t.GAME_NOT_FOUND;
+  } else {
+    var state = game.get("state");
+    if (acceptable.indexOf(state) == -1) {
+      result.error = constants.t.GAME_INVALID_STATE;
+      result.context = {
+        acceptableNames: acceptable.map(function(st) {
+          return GameState.getName(st);
+        }).join(", "),
+        stateName: GameState.getName(state)
+      }
+    }
   }
-  var state = game.get("state");
-  if (acceptable.indexOf(state) == -1) {
+  return result;
+}
 
-    var acceptableNames = acceptable.map(function(st) {
-      return GameState.getName(st);
-    }).join(", ");
-
-    var stateName = GameState.getName(state);
-    res.error("Game state '" + stateName + "' does not accept this operation. Supported states: " + acceptableNames);
-
+function errorOnInvalidGame(game, res, acceptable) {
+  var stateResult = checkGameState(game, acceptable);
+  if (stateResult.error) {
+    respondError(res, stateResult.error, stateResult.context);
     return true;
   }
   return false;
 }
 
-
-Parse.Cloud.define("checkNameFree", function(req, res) {
-  
-  var name = String(req.params.displayName);
-  if (!name || name === "") {
-    res.error("Unable to check, invalid display name.");
-    return;
-  }
-
-  var query = new Query(Parse.User);
-  query.equalTo("displayName", name);
-  query.find().then(
-    function(results) {
-      res.success({
-        available: results.length === 0
-      });
-    },
-    defaultError(res)
-  );
-});
-
-
-
-
-      // var game = new Game();
-      // game.set("config", config);
-      // game.set("state", GameState.PENDING);
-      // game.set("turn", 0);
-      // game.save().then(
-      //   function(game) {
-      //     res.success({
-      //       id: game.id
-      //     });
-      //   },
-      //   function(gameError) {
-      //     // Destroy config if creating the game was unsuccessful
-      //     config.destroy().then(
-      //       function(config) {
-      //         res.error(gameError);
-      //       }
-      //     );
-      //   }
-      // );
 
 
 var parseObjectConfig = {
@@ -310,10 +343,10 @@ var parseObjectConfig = {
       var momentCreated = moment(game.createdAt);
       game.createdAgo = momentCreated.from(now);
       game.updatedAgo = moment(game.updatedAt).from(now);
-      var momentStartTimeout = now.subtract(constants.START_GAME_MANUAL_TIMEOUT, "seconds");
+      var momentStartTimeout = momentCreated.add(constants.START_GAME_MANUAL_TIMEOUT, "seconds");
       game.startable =
         game.state == GameState.Lobby &&
-        momentCreated.isBefore(momentStartTimeout);
+        now.isAfter(momentStartTimeout);
       return game;
     }
   },
@@ -330,6 +363,8 @@ var parseObjectConfig = {
     ]
   }
 }
+
+
 
 function getPropFilter(filter) {
   return new JsonPropertyFilter.JsonPropertyFilter(
@@ -385,14 +420,35 @@ function filterObject(obj, level) {
   return obj;
 }
 
-function respond(res, data, filter) {
+function respond(res, message, data, filter) {
   data = filterObject(data);
-
   if (filter) {
     data = getPropFilter(filter).apply(data);
   }
+  data.code = message.id;
+  
   res.success(data);
 }
+
+Parse.Cloud.define("checkNameFree", function(req, res) {
+  
+  var name = !req.params.displayName ? null : String(req.params.displayName);
+  if (!name || name === "") {
+    respondError(res, constants.t.INVALID_PARAMETER)
+    return;
+  }
+
+  var query = new Query(Parse.User);
+  query.equalTo("displayName", name);
+  query.find().then(
+    function(results) {
+      respond(res, constants.t.AVAILABILITY, {
+        available: results.length === 0
+      });
+    },
+    respondError(res)
+  );
+});
 
 
 Parse.Cloud.define("createGame", function(req, res) {
@@ -404,9 +460,9 @@ Parse.Cloud.define("createGame", function(req, res) {
     }
   ).then(
     function(gameInfo) {
-      respond(res, gameInfo);
+      respond(res, constants.t.GAME_CREATED, gameInfo);
     },
-    defaultError(res)
+    respondError(res)
   );
 
 });
@@ -430,7 +486,7 @@ function getInvite(player) {
       }
     ).then(
       function(invite) {
-        if (!invite) return Promise.reject("Unable to get invite.");
+        if (!invite) return Promise.reject(new CodedError(constants.t.GAME_INVITE_ERROR));
         return Promise.resolve(invite);
       }
     );
@@ -451,17 +507,17 @@ Parse.Cloud.define("getInvite", function(req, res) {
     .first()
     .then(
       function(player) {
-        if (!player) return Promise.reject("Unable to find player.");
+        if (!player) return Promise.reject(new CodedError(constants.t.PLAYER_NOT_FOUND));
         return getInvite(player);
       }
     ).then(
       function(invite) {
-        respond(res, {
+        respond(res, constants.t.GAME_INVITE, {
           "invite": invite,
           "link": getInviteLink(invite)
         });
       },
-      defaultError(res)
+      respondError(res)
     );
   
 });
@@ -493,6 +549,7 @@ function addPaging(query, req, config) {
 }
 
 
+
 Parse.Cloud.define("findGames", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
@@ -511,33 +568,17 @@ Parse.Cloud.define("findGames", function(req, res) {
     .find()
     .then(
       function(games) {
-        if (games) {
-          respond(res, {
-            "games": games
-          });
-        } else {
-          res.error("No games found.");
-        }
+        respond(res, constants.t.GAME_LIST, {
+          "games": games
+        });
       },
-      defaultError(res)
+      respondError(res)
     );
 
 });
 
 
 
-
-
-// TODO remove this as it's not needed anymore
-function createConfigFromRandom() {
-  var config = new Config();
-  config.set("slotNum", 2);
-  config.set("isRandom", true);
-  config.set("fameCards", {});
-  config.set("aiDifficulty", AIDifficulty.None);
-  config.set("turnMaxSec", 60);
-  return config.save();
-}
 
 function createConfigFromRequest(req) {
   var config = new Config();
@@ -612,6 +653,7 @@ function createGameFromConfig(user, config) {
     },
     function(error) {
       // Try cleaning up before failing
+      // TODO: cleanup more e.g. jobs, probably in beforeDelete actually!
       var toDestroy = [config];
       if (savedGame) toDestroy.push(game);
       Parse.Object.destroyAll(toDestroy).then(
@@ -663,6 +705,7 @@ Parse.Cloud.beforeDelete(Game, function(req, res) {
 
   // TODO: remove invites
   // TODO: remove turns
+  // TODO: remove jobs
 
 /*
   var turns = new Query(Turn);
@@ -701,7 +744,30 @@ function getGameInfo(game, playerCount, player) {
   };
 }
 
-function notifyPlayers(players, data) {
+function sendPush(installationQuery, message, data) {
+  var filtered = filterObject(data);
+  
+  var msg;
+  if (message.m) {
+    msg = Mustache.render(message.m, filtered);
+  } else {
+    throw new Error("Message Mustache template not found");
+  }
+
+  filtered.code = message.id;
+
+  var obj = {
+    alert: msg,
+    data: filtered
+  };
+
+  return Parse.Push.send({
+    where: installationQuery,
+    data: obj
+  }, { useMasterKey: true })
+}
+
+function notifyPlayers(players, message, data) {
   users = players.map(function(player) {
     return player.get("user");
   });
@@ -713,44 +779,33 @@ function notifyPlayers(players, data) {
   var installationQuery = new Query(Parse.Installation);
   installationQuery.matchesKeyInQuery("installationId", "installationId", sessionQuery);
 
-  return Parse.Push.send({
-    where: installationQuery,
-    data: filterObject(data)
-  }, { useMasterKey: true });
+  return sendPush(installationQuery, message, data);
 }
 
-function notifyGame(game, data) {
+function notifyGame(game, message, data) {
   var playerQuery = new Query(Player);
   return playerQuery
     .equalTo("game", game)
     .find()
     .then(
       function(players) {
-        return notifyPlayers(players, data);
+        return notifyPlayers(players, message, data);
       }
     );
 }
 
 
 function startGame(game) {
-  var state = game.get("state");
-  if (state != GameState.Lobby) {
-    return Promise.reject(
-      "Unable to start a game in state: " + GameState.getName(state)
-    );
-  }
+  var stateResult = checkGameState(game, [GameState.Lobby]);
+  if (stateResult.error) return Promise.reject(new CodedError(stateResult.error, stateResult.context));
+  
   game.set("state", GameState.Running);
 
   return Promise.when(game.save(), removeJob(game.get("lobbyTimeoutJob")))
     .then(
       function(g) {
         game = g;
-        return notifyGame(game, {
-          alert: "Game '" + game.id + "' has started!",
-          data: {
-            game: game
-          }
-        });
+        return notifyGame(game, constants.t.GAME_STARTED, { game: game });
       }
     ).then(
       function() {
@@ -800,10 +855,10 @@ function joinGame(game, user) {
           .destroy()
           .then(
             function() {
-              promise.reject("Unable to join, too full.");
+              promise.reject(new CodedError(constants.t.GAME_FULL));
             },
             function() {
-              promise.reject("Game too full, but unable to remove player.");
+              promise.reject(new CodedError(constants.t.GAME_FULL_PLAYER_ERROR));
             }
           );
       } else if (playerCount == maxPlayers) {
@@ -832,7 +887,7 @@ Parse.Cloud.beforeSave(Player, function(req, res) {
     query.first().then(
       function(existing) {
         if (existing) {
-          res.error("Player already in game.");
+          res.error(constants.t.PLAYER_ALREADY_IN_GAME);
         } else {
           res.success();
         }
@@ -848,6 +903,9 @@ Parse.Cloud.beforeSave(Player, function(req, res) {
 });
 
 function fetchInclude(object, includes) {
+  if (!object) {
+    return Promise.resolve();
+  }
   var query = new Query(object);
   return query
     .include(includes)
@@ -873,7 +931,7 @@ Parse.Cloud.define("joinGame", function(req, res) {
     ).then(
       function(gi) {
         gameInfo = gi;
-        return fetchInclude(gameInfo.game, [
+        return fetchInclude(gameInfo ? gameInfo.game : null, [
           "config",
           "creator",
           "currentPlayer",
@@ -883,9 +941,9 @@ Parse.Cloud.define("joinGame", function(req, res) {
     ).then(
       function(game) {
         gameInfo.game = game;
-        respond(res, gameInfo);
+        respond(res, constants.t.GAME_JOINED, gameInfo);
       },
-      defaultError(res)
+      respondError(res)
     );
 });
 
@@ -905,8 +963,7 @@ Parse.Cloud.define("leaveGame", function(req, res) {
     .then(
       function(g) {
         game = g;
-        if (errorOnInvalidGame(game, res, [GameState.Running])) return;
-
+        if (!game) return Promise.reject(new CodedError(constants.t.GAME_NOT_FOUND));
         var query = new Query(Player);
         return query
           .equalTo("game", game)
@@ -917,7 +974,8 @@ Parse.Cloud.define("leaveGame", function(req, res) {
       }
     ).then(
       function(player) {
-        if (!player) return Promise.reject("Unable to leave game, user not in game.");
+        if (!player) return Promise.reject(new CodedError(constants.t.PLAYER_NOT_IN_GAME));
+        if (errorOnInvalidGame(game, res, [GameState.Running])) return;
         leaver = player;
         player.set("state", PlayerState.Inactive);
         
@@ -932,12 +990,11 @@ Parse.Cloud.define("leaveGame", function(req, res) {
       }
     ).then(
       function(player, nextPlayer) {
-        respond(res, {
-          left: true,
+        respond(res, constants.t.GAME_LEFT, {
           player: leaver
         });
       },
-      defaultError(res)
+      respondError(res)
     );
 
 });
@@ -984,7 +1041,7 @@ function addContacts(game, player) {
       },
       function(errors) {
         var actualErrors = errors.filter(function(error) {
-          return error.message != "[exists]";
+          return typeof(error.message) != 'object' || error.message.exists !== true;
         });
         if (actualErrors.length > 0) return Promise.reject(actualErrors);
         return Promise.resolve();
@@ -1003,7 +1060,7 @@ Parse.Cloud.beforeSave(Contact, function(req, res) {
     .then(
       function(existing) {
         if (existing) {
-          res.error("[exists]");
+          res.error({ exists: true });
         } else {
           res.success();
         }
@@ -1050,11 +1107,11 @@ Parse.Cloud.define("listGames", function(req, res) {
       var games = players.map(function(player) {
         return player.get("game");
       });
-      respond(res, {
+      respond(res, constants.t.GAME_LIST, {
         "games": games
       });
     },
-    defaultError(res)
+    respondError(res)
   );
 
 });
@@ -1079,15 +1136,21 @@ Parse.Cloud.define("startGame", function(req, res) {
           .equalTo("game", game)
           .equalTo("user", user)
           .first();
+      },
+      function(err) {
+        if (err.code == constants.t.GAME_NOT_FOUND.id) {
+          return Promise.reject(new CodedError(constants.t.GAME_THIRD_PARTY));
+        }
+        return Promise.reject(err);
       }
     ).then(
       function(p) {
         player = p;
-        if (!player) return Promise.reject("Unable to start a third party game.");
+        if (!player) return Promise.reject(new CodedError(constants.t.GAME_THIRD_PARTY));
         if (filterObject(game).startable) {
           return startGame(game);
         } else {
-          return Promise.reject("Unable to start game, invalid state.");
+          return Promise.reject(new CodedError(constants.t.GAME_NOT_STARTABLE));
         }
       }
     ).then(
@@ -1096,18 +1159,18 @@ Parse.Cloud.define("startGame", function(req, res) {
         if (game) {
           return getPlayerCount(game);
         } else {
-          return Promise.reject("Unable to start game.");
+          return Promise.reject(new CodedError(constants.t.GAME_START_ERROR));
         }
       }
     ).then(
       function(playerCount) {
         if (playerCount >= 2) {
-          respond(res, getGameInfo(game, playerCount, player));
+          respond(res, constants.t.GAME_STARTED, getGameInfo(game, playerCount, player));
         } else {
-          res.error("Unable to start game with less than two players.");
+          respondError(res, constants.t.GAME_INSUFFICIENT_PLAYERS);
         }
       },
-      defaultError(res)
+      respondError(res)
     );
 });
 
@@ -1130,7 +1193,7 @@ Parse.Cloud.define("listTurns", function(req, res) {
       }
     ).then(
       function(player) {
-        if (!player) return Promise.reject("Unable to list third party turns.");
+        if (!player) return Promise.reject(new CodedError(constants.t.TURN_THIRD_PARTY));
         if (errorOnInvalidGame(game, res, [GameState.Running, GameState.Ended])) return;
         var query = new Query(Turn);
         addPaging(query, req, constants.TURN_PAGING);
@@ -1141,12 +1204,11 @@ Parse.Cloud.define("listTurns", function(req, res) {
       }
     ).then(
       function(turns) {
-        if (!turns) return Promise.reject("No turns found.");
-        respond(res, {
+        respond(res, constants.t.TURN_LIST, {
           turns: turns
         });
       },
-      defaultError(res)
+      respondError(res)
     );
 });
 
@@ -1165,56 +1227,12 @@ Parse.Cloud.define("listFriends", function(req, res) {
         var users = contacts.map(function(contact) {
           return contact.get("contact");
         });
-        respond(res, {
+        respond(res, constants.t.CONTACT_LIST, {
           contacts: users
         });
       },
-      defaultError(res)
+      respondError(res)
     );
-
-  /* 
-  // On demand list of friends, no good
-  var playerQuery = new Query(Player);
-  playerQuery
-    .equalTo("user", user)
-    .limit(1000)
-    .find()
-    .then(
-      function(players) {
-        var games = players.map(function(player) {
-          return player.get("game");
-        });
-
-        console.log("games: " + games.length);
-
-        var connectedQuery = new Query(Player);
-        return connectedQuery
-          .containedIn("game", games)
-          .limit(1000)
-          .find()
-      }
-    ).then(
-      function(players) {
-        
-        var usersById = {};
-        players.forEach(function(player) {
-          var connectedUser = player.get("user");
-          if (!usersById[connectedUser.id]) {
-            usersById[connectedUser.id] = connectedUser;
-          }
-        }, this);
-
-        var users = [];
-        for (userId in usersById) {
-          if (userId == user.id) continue;
-          users.push(usersById[userId]);
-        }
-
-        res.success(users);
-      },
-      defaultError(res)
-    );
-    */
 });
 
 Parse.Cloud.define("deleteFriend", function(req, res) {
@@ -1232,16 +1250,14 @@ Parse.Cloud.define("deleteFriend", function(req, res) {
     .first()
     .then(
       function(contact) {
-        if (!contact) return Promise.reject("Contact not found");
+        if (!contact) return Promise.reject(new CodedError(constants.t.CONTACT_NOT_FOUND));
         return contact.destroy();
       }
     ).then(
       function() {
-        respond(res, {
-          deleted: true
-        });
+        respond(res, constants.t.CONTACT_DELETED, {});
       },
-      defaultError(res)
+      respondError(res)
     );
 });
 
@@ -1252,15 +1268,14 @@ function prepareTurn(game, player, previousTurn) {
   var config = game.get("config");
   var timeout = config.get("turnMaxSec");
   if (isNaN(timeout)) {
-    return Promise.reject(new Error("Invalid game timeout: " + timeout));
+    return Promise.reject(new CodedError(constants.t.GAME_INVALID_TIMEOUT, {
+      timeout: timeout
+    }));
   }
 
-  var pushPromise = notifyPlayers([player], {
-    alert: "It's your turn in game '" + game.id + "'!",
-    data: {
-      game: game,
-      previousTurn: previousTurn
-    }
+  var pushPromise = notifyPlayers([player], constants.t.PLAYER_TURN, {
+    game: game,
+    previousTurn: previousTurn
   });
 
   var job;
@@ -1370,8 +1385,7 @@ Parse.Cloud.define("gameTurn", function(req, res) {
           currentPlayer.get("user").id != req.user.id ||
           currentPlayer.get("state") != PlayerState.Active
         ) {
-          res.error("Game turn invalid, it's not your turn!");
-          return;
+          return Promise.reject(new CodedError(constants.t.TURN_NOT_IT));
         }
 
         var save = String(req.params.state);
@@ -1396,25 +1410,21 @@ Parse.Cloud.define("gameTurn", function(req, res) {
         var promises = [];
 
         if (final) {
-          promises[promises.length] = notifyGame(game, {
-            alert: "Game '" + game.id + "' has ended!",
-            data: {
-              game: game,
-              lastTurn: turn
-            }
-          })
+          promises[promises.length] = notifyGame(game, constants.t.GAME_ENDED, {
+            game: game,
+            lastTurn: turn
+          });
         }
 
         return Promise.when(promises);
       }
     ).then(
       function(results) {
-        respond(res, {
-          saved: true,
+        respond(res, constants.t.TURN_SAVED, {
           ended: final
         });
       },
-      defaultError(res)
+      respondError(res)
     );
 });
 
@@ -1435,7 +1445,7 @@ Parse.Cloud.define("gameTurn", function(req, res) {
 function findNextPlayer(game) {
   var currentPlayer = game.get("currentPlayer");
   if (!currentPlayer) {
-    return Promise.reject("Unable to find next player, no current player");
+    return Promise.reject(new CodedError(constants.t.PLAYER_NEXT_NO_CURRENT));
   }
 
   // console.log("Current player created at:\n ", currentPlayer.createdAt);
