@@ -121,7 +121,11 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 
 ## Security
 * [ ] HTTPS!
-* [ ] Input validation
+* [ ] Lock down various leaky REST call
+  * [ ] Look into Parse server pull request on GitHub that filters email, etc.
+  * [ ] `ClassesRouter`: `parse/classes/_User` & co.
+  * [ ] `UsersRouter`: `parse/users` & co.
+* [ ] Input validation (e.g. for save games)
 * [ ] Access security
 * [ ] Do we need to hide User object IDs?
 

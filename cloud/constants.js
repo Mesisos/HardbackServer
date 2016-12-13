@@ -9,6 +9,14 @@ module.exports = Object.freeze({
 
   INVITE_URL_PREFIX: process.env.SERVER_ROOT + "/join/",
 
+  GAME_DEFAULT_CONFIG: {
+    slotNum: 4,
+    isRandom: false,
+    fameCards: {},
+    aiDifficulty: 0,
+    turnMaxSec: 10
+  },
+
   START_GAME_MANUAL_TIMEOUT: 3,
   START_GAME_AUTO_TIMEOUT: 5,
 
@@ -120,6 +128,7 @@ module.exports = Object.freeze({
     INVALID_PARAMETER: { id: 1001, m:
       "Invalid parameter"
     },
+    UNKNOWN_ERROR: { id: 1002 },
     USER_NOT_FOUND: { id: 1004, m:
       "User not found."
     },

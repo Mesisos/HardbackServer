@@ -132,6 +132,25 @@ if (process.env.TESTING === "true") {
       );
   });
 
+  Parse.Cloud.define("destroyGame", function(req, res) {
+    if (!req.master) { res.error("unauthorized"); return; }
+    var query = new Parse.Query(Parse.Object.extend("Game"));
+    query
+      .get(req.params.gameId)
+      .then(
+        function(game) {
+          return game.destroy();
+        }
+      ).then(
+        function() {
+          res.success({ destroyed: true });
+        },
+        function(error) {
+          res.error(error);
+        }
+      );
+  });
+
 
   app.get('/createAccount', function(req, res) {
     var user = new Parse.User();

@@ -283,8 +283,10 @@ function respondError(res, error, context) {
     response = error;
   } else if (error.id && error.m) {
     response = new CodedError(error, context);
+  } else if (error.message) {
+    response = new CodedError({ id: constants.t.UNKNOWN_ERROR.id, m: filterObject(error.message) });
   } else {
-    response = error;
+    response = filterObject(error);
   }
   res.error(response);
 }
@@ -582,8 +584,19 @@ Parse.Cloud.define("findGames", function(req, res) {
 
 function createConfigFromRequest(req) {
   var config = new Config();
-  config.set("slotNum", Number(req.params.slotNum));
-  config.set("isRandom", Boolean(req.params.isRandom));
+
+  var slotNum = req.params.slotNum === undefined ? undefined : Number(req.params.slotNum);
+  var isRandom = req.params.isRandom === undefined ? undefined : Boolean(req.params.isRandom);
+  var aiDifficulty = req.params.aiDifficulty === undefined ? undefined : Number(req.params.aiDifficulty);
+  var turnMaxSec = req.params.turnMaxSec === undefined ? undefined : Number(req.params.turnMaxSec);
+  
+  if (slotNum === undefined || isNaN(slotNum)) slotNum = constants.GAME_DEFAULT_CONFIG.slotNum;
+  if (isRandom === undefined) isRandom = constants.GAME_DEFAULT_CONFIG.isRandom;
+  if (aiDifficulty === undefined || isNaN(aiDifficulty)) aiDifficulty = constants.GAME_DEFAULT_CONFIG.aiDifficulty;
+  if (turnMaxSec === undefined || isNaN(turnMaxSec)) turnMaxSec = constants.GAME_DEFAULT_CONFIG.turnMaxSec;
+
+  config.set("slotNum", slotNum);
+  config.set("isRandom", isRandom);
   
   var reqFameCards = req.params.fameCards;
   var fameCards = {};
@@ -599,13 +612,12 @@ function createConfigFromRequest(req) {
   }
 
   config.set("fameCards", fameCards);
-  config.set("aiDifficulty", Number(req.params.aiDifficulty));
-  config.set("turnMaxSec", Number(req.params.turnMaxSec));
+  config.set("aiDifficulty", aiDifficulty);
+  config.set("turnMaxSec", turnMaxSec);
   return config.save();
 }
 
 function createGameFromConfig(user, config) {
-  var promise = new Promise();
   var savedGame = false;
   var gameInfo;
   var game = new Game();
@@ -614,7 +626,7 @@ function createGameFromConfig(user, config) {
   game.set("turn", 0);
   game.set("consecutiveTurnTimeouts", 0);
   game.set("creator", user);
-  game.save().then(
+  return game.save().then(
     function(g) {
       game = g;
       savedGame = true;
@@ -649,52 +661,72 @@ function createGameFromConfig(user, config) {
     function(g) {
       game = g;
       gameInfo.game = game;
-      promise.resolve(gameInfo);
+      return Promise.resolve(gameInfo);
     },
     function(error) {
       // Try cleaning up before failing
-      // TODO: cleanup more e.g. jobs, probably in beforeDelete actually!
-      var toDestroy = [config];
-      if (savedGame) toDestroy.push(game);
-      Parse.Object.destroyAll(toDestroy).then(
-        function(config) {
-          promise.reject(error);
-        },
-        function(destroyError) {
-          promise.reject(destroyError);
-        }
-      );
+      if (savedGame) {
+        return game.destroy().then(
+          function() {
+            return Promise.reject(error);
+          },
+          function(destroyError) {
+            return Promise.reject(destroyError);
+          }
+        );
+      }
     }
   );
-  return promise;
 }
 
 Parse.Cloud.beforeDelete(Game, function(req, res) {
   var game = req.object;
+
   var config = game.get("config");
+  var configPromise = config.destroy();
 
-  var configP = config.destroy();
-
-  var playersP = new Promise();
   var players = new Query(Player);
-  players.equalTo("game", game);
-  players.find().then(
-    function(results) {
-      return Parse.Object.destroyAll(results);
-    },
-    function(error) {
-      playersP.reject("Unable to find player to destroy: " + error);
-    }
-  ).then(
-    function() {
-      playersP.resolve();
-    },
-    function(error) {
-      playersP.reject("Unable to destroy all players: " + error);
-    }
-  );
+  var playerPromise = players
+    .equalTo("game", game)
+    .find()
+    .then(
+      function(results) {
+        var invites = new Query(Invite);
+        var invitePromise = invites
+          .containedIn("inviter", results)
+          .find()
+          .then(
+            function(results) {
+              return Parse.Object.destroyAll(results);
+            }
+          );
+        return Promise.when(
+          invitePromise,
+          Parse.Object.destroyAll(results)
+        );
+      }
+    );
 
-  Promise.when([configP, playersP]).then(
+  var turns = new Query(Turn);
+  var turnPromise = turns
+    .equalTo("game", game)
+    .find()
+    .then(
+      function(results) {
+        return Parse.Object.destroyAll(results);
+      }
+    );
+
+  var lobbyTimeoutJobPromise = removeJob(game.get("lobbyTimeoutJob"));
+  var turnTimeoutJobPromise = removeJob(game.get("turnTimeoutJob"));
+
+  Promise.when(
+    configPromise,
+    playerPromise,
+    turnPromise,
+    lobbyTimeoutJobPromise,
+    turnTimeoutJobPromise
+  ).then(
     function() {
       res.success();
     },

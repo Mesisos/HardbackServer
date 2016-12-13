@@ -56,7 +56,7 @@ function requestLogin(username, password) {
   });
 }
 
-function parseCall(auth, funcname, payload) {
+function parseCall(auth, apiName, payload) {
 
   var headers = {
     "Content-Type": "application/json",
@@ -75,8 +75,10 @@ function parseCall(auth, funcname, payload) {
     }
   }
 
+  if (apiName.indexOf("/") == -1) apiName = "functions/" + apiName;
+
   return client({
-    path: urlParse + "functions/" + funcname,
+    path: urlParse + apiName,
     headers: headers,
     entity: payload
   }).then(function(response) {
@@ -1375,6 +1377,195 @@ describe("kue", function() {
         }
       )
     });
+
+  });
+
+});
+
+describe("cleanup", function() {
+  before(getUserSessions);
+
+  describe("game", function() {
+
+    var game = {};
+
+    it('gets created with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        slotNum: 2
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+          game.result = entityResult(entity);
+        }
+      );
+    });
+    
+    it('provides invite link to Alice', function() {
+      return parseCall("Alice", "getInvite", {
+        "gameId": game.id
+      }).then(
+        function(entity) {
+          var result = entityResult(entity, constants.t.GAME_INVITE);
+          game.invite = result.invite;
+        }
+      );
+    });
+
+    joinGame("Bob", game);
+
+    var turnNumber = 0;
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob", game, "allow", turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob", game, "allow", turnNumber++);
+    
+    it('provides turn list', function() {
+      return parseCall("Alice", "listTurns", {
+        gameId: game.id,
+        limit: 10,
+        skip: 0
+      }).then(
+        function(entity) {
+          var result = entityResult(entity, constants.t.TURN_LIST);
+          game.turns = result.turns;
+        }
+      );
+    });
+
+    it('exists', function() {
+      return parseCall("Alice", "classes/Game/" + game.id).then(
+        function(retGame) {
+          retGame.objectId.should.equal(game.id);
+          game.jobs = [
+            retGame.turnTimeoutJob
+          ];
+          if (game.result.state == GameState.Lobby) {
+            game.jobs.push(retGame.lobbyTimeoutJob);
+          }
+        }
+      );
+    });
+
+    it('jobs exist', function() {
+      return Promise.when(game.jobs.map(
+        function(jobId) {
+          return getJob(jobId);
+        }
+      )).then(
+        function(retJobs) {
+          for (var jobIndex in retJobs) {
+            var jobId = game.jobs[jobIndex];
+            var retJob = retJobs[jobIndex];
+            retJob.id.should.equal(jobId);
+          }
+        }
+      );
+    });
+    
+    it('turns exist', function() {
+      return Promise.when(game.turns.map(
+        function(turn) {
+          return parseCall("Alice", "classes/Turn/" + turn.objectId);
+        }
+      )).then(
+        function(retTurns) {
+          for (var turnIndex in retTurns) {
+            var turn = game.turns[turnIndex];
+            var retTurn = retTurns[turnIndex];
+            retTurn.objectId.should.equal(turn.objectId);
+          }
+        }
+      );
+    });
+    
+    it('invite exists', function() {
+      return parseCall("Alice", "classes/Invite/" + game.invite.objectId).then(
+        function(retInvite) {
+          retInvite.objectId.should.equal(game.invite.objectId);
+        }
+      );
+    });
+
+
+
+
+
+    it("gets destroyed", function() {
+      return parseCall({ useMasterKey: true }, "destroyGame", {
+        gameId: game.id
+      }).then(
+        function(entity) {
+          var result = entityResult(entity);
+          result.destroyed.should.equal(true);
+        }
+      );
+    });
+
+
+
+
+    
+    it('does not exist anymore', function() {
+      return parseCall("Alice", "classes/Game/" + game.id).then(
+        function(result) {
+          if (result && result.code == Parse.Error.OBJECT_NOT_FOUND) {
+            return Promise.resolve();
+          }
+          return Promise.reject(new Error("it exists"));
+        }
+      );
+    });
+
+    it('jobs do not exist anymore', function() {
+      return Promise.when(game.jobs.map(
+        function(jobId) {
+          return getJob(jobId);
+        }
+      )).then(
+        function(retJobs) {
+          return Promise.reject(new Error("they exist"));
+        },
+        function() {
+          return Promise.resolve();
+        }
+      );
+    });
+
+    it('turns do not exist anymore', function() {
+      return Promise.when(game.turns.map(
+        function(turn) {
+          return parseCall("Alice", "classes/Turn/" + turn.objectId);
+        }
+      )).then(
+        function(results) {
+          if (results) {
+            var everyNotFound = results.every(function(result) {
+              return result.code == Parse.Error.OBJECT_NOT_FOUND;
+            });
+            if (everyNotFound) {
+              return Promise.resolve();
+            }
+          }
+          return Promise.reject(new Error("they exist"));
+        }
+      );
+    });
+    
+    it('invite does not exist anymore', function() {
+      return parseCall("Alice", "classes/Invite/" + game.invite.objectId).then(
+        function(result) {
+          if (result && result.code == Parse.Error.OBJECT_NOT_FOUND) {
+            return Promise.resolve();
+          }
+          return Promise.reject(new Error("it exists"));
+        }
+      );
+    });
+    
+    
+    
+
+
 
   });
 
