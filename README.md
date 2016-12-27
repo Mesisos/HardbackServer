@@ -73,6 +73,8 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * [ ] Verify parameter validity on saving of all (most? at least Game?) objects
   * [ ] beforeSave User?
 * [ ] Analyze performance and add Mongo indexes if necessary/possible
+* [ ] Add invited player ids to the create game call so that those slots can be marked as taken, and have the invites go out
+* [ ] Add an integer to the player info that specifies which avatar they're using
 
 ### Someday
 * [ ] Blocking of friends?
