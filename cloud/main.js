@@ -21,12 +21,57 @@ var Player = Parse.Object.extend("Player");
 var Contact = Parse.Object.extend("Contact");
 var Invite = Parse.Object.extend("Invite");
 
-// Hook into Query.get for better NOT_FOUND error messages
+
+// Hook into Object subclasses to provide master access for common methods
+[Game, Config, Turn, Player, Contact, Invite].forEach(
+  function(Obj) {
+    Obj.internalSave = Obj.prototype.save;
+    Obj.prototype.save = function(arg1, arg2, arg3) {
+      var options;
+      var args;
+      var keyValueOptions = arg3 !== undefined;
+      if (keyValueOptions) {
+        if (!arg3) arg3 = {};
+        options = arg3;
+        args = [arg1, arg2, options];
+      } else {
+        if (!arg2) arg2 = {};
+        options = arg2;
+        args = [arg1, options];
+      }
+      options.useMasterKey = true;
+      return Obj.internalSave.apply(this, args);
+    }
+    Obj.internalDestroy = Obj.prototype.destroy;
+    Obj.prototype.destroy = function(options) {
+      if (!options) options = {};
+      options.useMasterKey = true;
+      return Obj.internalDestroy.call(this, options);
+    }
+  }
+);
+
+// Hook into Parse.Object for master access
+var PObject = {};
+PObject.destroyAll = Parse.Object.destroyAll;
+Parse.Object.destroyAll = function(list, options) {
+  if (!options) options = {};
+  options.useMasterKey = true;
+  return PObject.destroyAll(list, options);
+}
+
+
+
+// Hook into Query.get for always-on master access and 
+// better NOT_FOUND error messages
 var PQuery = {};
+
 PQuery.get = Query.prototype.get;
 Query.prototype.get = function(objectId, options) {
   var that = this;
-  var query = PQuery.get.bind(this)(objectId, options);
+  if (!options) options = {};
+  options.useMasterKey = true;
+  var query = PQuery.get.call(this, objectId, options);
   return query.then(
     function(result) {
       return Promise.resolve(result);
@@ -49,6 +94,28 @@ Query.prototype.get = function(objectId, options) {
     }
   )
 }
+
+PQuery.find = Query.prototype.find;
+Query.prototype.find = function(options) {
+  if (!options) options = {};
+  options.useMasterKey = true;
+  return PQuery.find.call(this, options);
+}
+
+PQuery.first = Query.prototype.first;
+Query.prototype.first = function(options) {
+  if (!options) options = {};
+  options.useMasterKey = true;
+  return PQuery.first.call(this, options);
+}
+
+PQuery.count = Query.prototype.count;
+Query.prototype.count = function(options) {
+  if (!options) options = {};
+  options.useMasterKey = true;
+  return PQuery.count.call(this, options);
+}
+
 
 
 /**
@@ -735,30 +802,6 @@ Parse.Cloud.beforeDelete(Game, function(req, res) {
     }
   );
 
-  // TODO: remove invites
-  // TODO: remove turns
-  // TODO: remove jobs
-
-/*
-  var turns = new Query(Turn);
-  turns.equalTo("game", game);
-  turns.find().then(
-    function(results) {
-      for (var i = 0; i < results.length; i++) {
-        var turn = results[i];
-        turn.destroy().then(
-          function(player) {},
-          function(error) {
-            console.error("Unable to destroy player", error);
-          }
-        )
-      }
-    },
-    function(error) {
-      console.error("Unable to find player to destroy", error);
-    }
-  );
-*/
 });
 
 function getPlayerCount(game) {
@@ -792,6 +835,8 @@ function sendPush(installationQuery, message, data) {
     alert: msg,
     data: filtered
   };
+
+  // console.log("Push suppressed:", obj); return;
 
   return Parse.Push.send({
     where: installationQuery,
@@ -934,14 +979,14 @@ Parse.Cloud.beforeSave(Player, function(req, res) {
 
 });
 
-function fetchInclude(object, includes) {
+function fetchInclude(object, includes, options) {
   if (!object) {
     return Promise.resolve();
   }
   var query = new Query(object);
   return query
     .include(includes)
-    .get(object.id);
+    .get(object.id, options);
 }
 
 Parse.Cloud.define("joinGame", function(req, res) {
@@ -1129,7 +1174,7 @@ Parse.Cloud.define("listGames", function(req, res) {
         .equalTo("state", PlayerState.Active)
         .include("game")
         .include("game.config")
-        .include("game.creator.displayName")
+        .include("game.creator")
         .include("game.currentPlayer");
 
       return playerQuery.find();

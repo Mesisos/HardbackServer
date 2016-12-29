@@ -999,14 +999,12 @@ describe("contacts", function() {
 
   describe("mutual addition", function() {
     it("should remove contacts first", function() {
-      return client({
-        path: urlRoot + "purgeContacts",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Parse-Application-Id": appId,
-          "X-Parse-Master-Key": masterKey
+      return parseCall({ useMasterKey: true }, "purgeContacts", {}).then(
+        function(result) {
+          result.should.have.property("result");
+          should.equal(result.result.purged, true);
         }
-      });
+      );
     });
 
     function contactCheck(name, desc, include, exclude, done) {
@@ -1433,7 +1431,7 @@ describe("cleanup", function() {
     });
 
     it('exists', function() {
-      return parseCall("Alice", "classes/Game/" + game.id).then(
+      return parseCall({ useMasterKey: true }, "classes/Game/" + game.id).then(
         function(retGame) {
           retGame.objectId.should.equal(game.id);
           game.jobs = [
@@ -1465,7 +1463,7 @@ describe("cleanup", function() {
     it('turns exist', function() {
       return Promise.when(game.turns.map(
         function(turn) {
-          return parseCall("Alice", "classes/Turn/" + turn.objectId);
+          return parseCall({ useMasterKey: true }, "classes/Turn/" + turn.objectId);
         }
       )).then(
         function(retTurns) {
@@ -1479,7 +1477,7 @@ describe("cleanup", function() {
     });
     
     it('invite exists', function() {
-      return parseCall("Alice", "classes/Invite/" + game.invite.objectId).then(
+      return parseCall({ useMasterKey: true }, "classes/Invite/" + game.invite.objectId).then(
         function(retInvite) {
           retInvite.objectId.should.equal(game.invite.objectId);
         }
@@ -1506,7 +1504,7 @@ describe("cleanup", function() {
 
     
     it('does not exist anymore', function() {
-      return parseCall("Alice", "classes/Game/" + game.id).then(
+      return parseCall({ useMasterKey: true }, "classes/Game/" + game.id).then(
         function(result) {
           if (result && result.code == Parse.Error.OBJECT_NOT_FOUND) {
             return Promise.resolve();
@@ -1534,7 +1532,7 @@ describe("cleanup", function() {
     it('turns do not exist anymore', function() {
       return Promise.when(game.turns.map(
         function(turn) {
-          return parseCall("Alice", "classes/Turn/" + turn.objectId);
+          return parseCall({ useMasterKey: true }, "classes/Turn/" + turn.objectId);
         }
       )).then(
         function(results) {
@@ -1552,7 +1550,7 @@ describe("cleanup", function() {
     });
     
     it('invite does not exist anymore', function() {
-      return parseCall("Alice", "classes/Invite/" + game.invite.objectId).then(
+      return parseCall({ useMasterKey: true }, "classes/Invite/" + game.invite.objectId).then(
         function(result) {
           if (result && result.code == Parse.Error.OBJECT_NOT_FOUND) {
             return Promise.resolve();
@@ -1561,12 +1559,61 @@ describe("cleanup", function() {
         }
       );
     });
-    
-    
-    
-
-
 
   });
+
+});
+
+
+describe("access security", function() {
+  before(getUserSessions);
+  
+  function checkAccess(desc, apiName) {
+    apiName = "/" + apiName;
+    it(desc + " (" + apiName + ")", function() {
+      return parseCall(null, apiName).then(
+        function(result) {
+          result.should.not.have.property("results");
+          result.should.have.property("code");
+          result.code.should.equal(119);
+        }
+      );
+    });
+  }
+
+  describe("user access", function() {
+
+    checkAccess("should not return list of users", "users");
+    checkAccess("should not return specific user", "users/etSAhagpLp");
+
+    it("should return Alice", function() {
+      return parseCall("Alice", "/users/me").then(
+        function(result) {
+          result.should.have.property("objectId");
+          result.should.have.property("displayName");
+          result.displayName.should.equal("Ally");
+        }
+      );
+    });
+
+  });
+
+  function checkClassAccess(className) {
+    checkAccess("should not return list of " + className + "s", "classes/" + className);
+  }
+
+  describe("class access", function() {
+    
+    checkClassAccess("_Installation");
+    checkClassAccess("_User");
+    checkClassAccess("Session");
+    checkClassAccess("Game");
+    checkClassAccess("Config");
+    checkClassAccess("Invite");
+    checkClassAccess("Player");
+    checkClassAccess("Turn");
+
+  });
+
 
 });

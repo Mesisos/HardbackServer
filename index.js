@@ -136,10 +136,10 @@ if (process.env.TESTING === "true") {
     if (!req.master) { res.error("unauthorized"); return; }
     var query = new Parse.Query(Parse.Object.extend("Game"));
     query
-      .get(req.params.gameId)
+      .get(req.params.gameId, { useMasterKey: true })
       .then(
         function(game) {
-          return game.destroy();
+          return game.destroy({ useMasterKey: true });
         }
       ).then(
         function() {
@@ -150,6 +150,68 @@ if (process.env.TESTING === "true") {
         }
       );
   });
+
+  Parse.Cloud.define("purgeContacts", function(req, res) {
+    if (!req.master) { res.error("unauthorized"); return; }
+
+    var userQuery = new Parse.Query(Parse.Object.extend("User"));
+    userQuery
+      .containedIn("username", ["Alice", "Bob", "Carol", "Dan"])
+      .find({ useMasterKey: true })
+      .then(
+        function(users) {
+          var contactQuery = new Parse.Query(Parse.Object.extend("Contact"));
+          return contactQuery
+            .containedIn("user", users)
+            .find({ useMasterKey: true });
+        }
+      ).then(
+        function(contacts) {
+          return Parse.Object.destroyAll(contacts, { useMasterKey: true });
+        }
+      ).then(
+        function() {
+          res.success({ purged: true });
+        },
+        function(error) {
+          res.error(error);
+        }
+      );
+
+  });
+
+  Parse.Cloud.define("purgeRandomGames", function(req, res) {
+    if (!req.master) { res.error("unauthorized"); return; }
+
+    var configQuery = new Parse.Query(Parse.Object.extend("Config"));
+    configQuery
+      .equalTo("isRandom", true);
+    
+    var query = new Parse.Query(Parse.Object.extend("Game"));
+    query
+      .matchesQuery("config", configQuery)
+      .equalTo("state", 1)
+      .find({ useMasterKey: true })
+      .then(
+        function(games) {
+          if (games) {
+            return Parse.Object.destroyAll(games);
+          } else {
+            return Parse.Promise.reject("No games found.");
+          }
+        }
+      ).then(
+        function() {
+          res.success({ purged: true });
+        },
+        function(error) {
+          res.error(error);
+        }
+      );
+
+  });
+
+
 
 
   app.get('/createAccount', function(req, res) {
@@ -167,65 +229,6 @@ if (process.env.TESTING === "true") {
         res.status(202).send(error);
       }
     );
-  });
-
-
-  app.get('/purgeContacts', function(req, res) {
-
-    var userQuery = new Parse.Query(Parse.Object.extend("User"));
-    userQuery
-      .containedIn("username", ["Alice", "Bob", "Carol", "Dan"])
-      .find()
-      .then(
-        function(users) {
-          var contactQuery = new Parse.Query(Parse.Object.extend("Contact"));
-          return contactQuery
-            .containedIn("user", users)
-            .find();
-        }
-      ).then(
-        function(contacts) {
-          return Parse.Object.destroyAll(contacts);
-        }
-      ).then(
-        function() {
-          res.status(200).send("Done!");
-        },
-        function(error) {
-          res.status(500).send(error);
-        }
-      );
-
-  });
-
-  app.get('/purgeRandomGames', function(req, res) {
-
-    var configQuery = new Parse.Query(Parse.Object.extend("Config"));
-    configQuery
-      .equalTo("isRandom", true);
-    
-    var query = new Parse.Query(Parse.Object.extend("Game"));
-    query
-      .matchesQuery("config", configQuery)
-      .equalTo("state", 1)
-      .find()
-      .then(
-        function(games) {
-          if (games) {
-            return Parse.Object.destroyAll(games);
-          } else {
-            return Parse.Promise.reject("No games found.");
-          }
-        }
-      ).then(
-        function() {
-          res.status(200).send("Done!");
-        },
-        function(error) {
-          res.status(500).send(error);
-        }
-      );
-
   });
 
   app.get('/testPush', function(req, res) {
