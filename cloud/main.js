@@ -141,7 +141,9 @@ util.inherits(CodedError, Error);
 
 
 // Jobs
-var jobs = kue.createQueue();
+var jobs = kue.createQueue({
+  redis: process.env.REDIS_URL
+});
 
 function addJob(name, config) {
   var promise = new Promise();

@@ -113,7 +113,7 @@ if (process.env.TESTING === "true") {
 
 
   // Start the kue job queue UI
-  kue.app.listen(process.env.REDIS_URL);
+  kue.app.listen(3000);
   console.log('kue UI started on port 3000');
 
 
