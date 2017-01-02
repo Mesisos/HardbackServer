@@ -1,9 +1,4 @@
-// Example express application adding the parse-server module to expose Parse
-// compatible API routes.
-
-
 // process.env.VERBOSE = 1
-
 
 var express = require('express');
 var ParseServer = require('parse-server').ParseServer;
@@ -113,9 +108,8 @@ if (process.env.TESTING === "true") {
 
 
   // Start the kue job queue UI
-  kue.app.listen(3000);
-  console.log('kue UI started on port 3000');
-
+  app.use("/kue", kue.app);
+  console.log('kue UI available at /kue');
 
   Parse.Cloud.define("debugGame", function(req, res) {
     if (!req.master) { res.error("unauthorized"); return; }
