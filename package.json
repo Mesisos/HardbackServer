@@ -16,7 +16,7 @@
   },
   "scripts": {
     "start": "node index.js",
-    "test": "mocha --timeout 4000"
+    "test": "mocha --timeout 5000"
   },
   "engines": {
     "node": ">=4.3"

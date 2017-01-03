@@ -24,6 +24,12 @@ var serverConfig = {
     android: {
       senderId: process.env.ANDROID_SENDER_ID,
       apiKey: process.env.ANDROID_API_KEY
+    },
+    ios: {
+      pfx: 'push/PushCertificate.p12',
+      passphrase: process.env.IOS_PASSPHRASE || '',
+      bundleId: process.env.IOS_BUNDLE,
+      production: process.env.IOS_PRODUCTION == 'true'
     }
   },
   enableAnonymousUsers: false,
