@@ -636,6 +636,8 @@ Parse.Cloud.define("findGames", function(req, res) {
     .equalTo("state", GameState.Lobby)
     .include("config")
     .include("creator")
+    .include("currentPlayer")
+    .include("currentPlayer.user")
     .find()
     .then(
       function(games) {
@@ -1177,7 +1179,8 @@ Parse.Cloud.define("listGames", function(req, res) {
         .include("game")
         .include("game.config")
         .include("game.creator")
-        .include("game.currentPlayer");
+        .include("game.currentPlayer")
+        .include("game.currentPlayer.user")
 
       return playerQuery.find();
     }

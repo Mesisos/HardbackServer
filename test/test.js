@@ -1,9 +1,14 @@
 process.env.SERVER_ROOT = "http://127.0.0.1:5000";
 // process.env.SERVER_ROOT = "http://paperback.herokuapp.com";
 
+var appId = "pbserver";
+var masterKey = "12345";
+
 var constants = require('../cloud/constants.js');
 var GameState = constants.GameState;
 var AIDifficulty = constants.AIDifficulty;
+
+var timeoutMultiplier = 1;
 
 var should = require('chai').should();
 var fs = require('fs');
@@ -11,14 +16,15 @@ var rest = require('rest');
 var mime = require('rest/interceptor/mime');
 var Parse = require('parse/node');
 var kue = require('kue');
+var jobs = kue.createQueue({
+  redis: process.env.REDIS_URL
+});
 var Promise = Parse.Promise;
 var client = rest.wrap(mime);
-var jobs = kue.createQueue();
+
 
 var urlRoot = process.env.SERVER_ROOT + "/";
 var urlParse = urlRoot + "parse/";
-var appId = "pbserver";
-var masterKey = "12345";
 
 var logins = [
   { user: "Alice", pass: "p" },
@@ -262,11 +268,15 @@ function internalStartGame(name, game, desc, customFunc, delay) {
       promise.resolve();
     } else {
       var relativeDelay = delay - (game.startTime > 0 ? (Date.now() - game.startTime) : 0);
-      this.timeout(2000 + relativeDelay);
-
-      setTimeout(function() {
+      if (relativeDelay <= 0) {
         promise.resolve();
-      }, relativeDelay);
+      } else {
+        this.timeout(2000 + relativeDelay);
+
+        setTimeout(function() {
+          promise.resolve();
+        }, relativeDelay);
+      }
     }
 
     return promise.then(function() {
@@ -673,14 +683,14 @@ describe('game flow', function() {
     var gameNum = 7;
 
     it('should remove random games first', function() {
-      return client({
-        path: urlRoot + "purgeRandomGames",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Parse-Application-Id": appId,
-          "X-Parse-Master-Key": masterKey
+      return parseCall({ useMasterKey: true }, "purgeRandomGames",
+        {}
+      ).then(
+        function(result) {
+          result.should.have.property("result");
+          should.equal(result.result.purged, true);
         }
-      });
+      );
     });
 
     it('finds no games with Bob after all of them are removed', function() {
@@ -711,7 +721,7 @@ describe('game flow', function() {
     }
     
     for (var gameIndex = 0; gameIndex < gameNum; gameIndex++) {
-      it('should make Alice create random game #' + gameIndex + ' and get the result', createRandomGame.bind(null, gameInfos));
+      it('should make Alice create random game #' + (gameIndex + 1) + ' and get the result', createRandomGame.bind(null, gameInfos));
     }
 
     it('finds random games with Bob that match the above', function() {
@@ -1188,7 +1198,7 @@ describe("kue", function() {
 
   describe("turn timeout job", function() {
 
-    var turnMaxSec = 1;
+    var turnMaxSec = 1*timeoutMultiplier;
     var game = {};
 
     it('creating a game with Alice', function() {
@@ -1297,7 +1307,7 @@ describe("kue", function() {
   describe("game ending turn timeout job", function() {
 
     var slotNum = 2;
-    var turnMaxSec = 1;
+    var turnMaxSec = 1*timeoutMultiplier;
     var game = {};
 
     it('creating a game with Alice', function() {
@@ -1530,6 +1540,7 @@ describe("cleanup", function() {
     });
 
     it('turns do not exist anymore', function() {
+      this.timeout(20000);
       return Promise.when(game.turns.map(
         function(turn) {
           return parseCall({ useMasterKey: true }, "classes/Turn/" + turn.objectId);
