@@ -9,6 +9,7 @@ var Mustache = require("mustache");
 
 GameState = constants.GameState;
 PlayerState = constants.PlayerState;
+SlotType = constants.SlotType;
 AIDifficulty = constants.AIDifficulty;
 
 var Promise = Parse.Promise;
@@ -511,10 +512,10 @@ Parse.Cloud.define("checkNameFree", function(req, res) {
 
   var query = new Query(Parse.User);
   query.equalTo("displayName", name);
-  query.find().then(
-    function(results) {
+  query.first().then(
+    function(result) {
       respond(res, constants.t.AVAILABILITY, {
-        available: results.length === 0
+        available: !result
       });
     },
     respondError(res)
@@ -629,6 +630,7 @@ Parse.Cloud.define("findGames", function(req, res) {
   configQuery
     .equalTo("isRandom", true);
   
+  var games;
   var query = new Query(Game);
   addPaging(query, req, constants.FIND_GAME_PAGING);
   query
@@ -640,11 +642,48 @@ Parse.Cloud.define("findGames", function(req, res) {
     .include("currentPlayer.user")
     .find()
     .then(
-      function(games) {
+      function(g) {
+        games = g;
+        var playerQuery = new Query(Player);
+        if (games) playerQuery.containedIn("game", games);
+        playerQuery
+          .equalTo("state", PlayerState.Active)
+          .include("user.displayName")
+        return playerQuery.find();
+      }
+    ).then(
+      function(allPlayers) {
+
+        var gameSlots = {};
+        var gamesJoined = {};
+
+        games.forEach(function(game) {
+          gameSlots[game.id] = game.get("config").get("slots");
+        }, this);
+        allPlayers.forEach(function(player) {
+          var gameId = player.get("game").id;
+          var slotIndex = player.get("slot");
+          if (player.get("user").id == user.id) gamesJoined[gameId] = true;
+          var slots = gameSlots[gameId];
+          if (!slots) return;
+          if (slotIndex < 0 || slotIndex >= slots.length) return;
+          slots[slotIndex].filled = true;
+        }, this);
+
+        games.forEach(function(game) {
+          var slotsFree = gameSlots[game.id].filter(function(slot) {
+            return slot.type == SlotType.Open && !slot.filled;
+          });
+          game.set("freeSlots", slotsFree.length);
+          game.set("joined", !!gamesJoined[game.id]);
+        }, this);
+
         respond(res, constants.t.GAME_LIST, {
           "games": games
         });
       },
+        
+      
       respondError(res)
     );
 
@@ -656,19 +695,77 @@ Parse.Cloud.define("findGames", function(req, res) {
 function createConfigFromRequest(req) {
   var config = new Config();
 
-  var slotNum = req.params.slotNum === undefined ? undefined : Number(req.params.slotNum);
-  var isRandom = req.params.isRandom === undefined ? undefined : Boolean(req.params.isRandom);
-  var aiDifficulty = req.params.aiDifficulty === undefined ? undefined : Number(req.params.aiDifficulty);
-  var turnMaxSec = req.params.turnMaxSec === undefined ? undefined : Number(req.params.turnMaxSec);
-  
-  if (slotNum === undefined || isNaN(slotNum)) slotNum = constants.GAME_DEFAULT_CONFIG.slotNum;
-  if (isRandom === undefined) isRandom = constants.GAME_DEFAULT_CONFIG.isRandom;
-  if (aiDifficulty === undefined || isNaN(aiDifficulty)) aiDifficulty = constants.GAME_DEFAULT_CONFIG.aiDifficulty;
-  if (turnMaxSec === undefined || isNaN(turnMaxSec)) turnMaxSec = constants.GAME_DEFAULT_CONFIG.turnMaxSec;
+  var reqSlots = req.params.slots instanceof Array ? req.params.slots : null;
+  if (!reqSlots) reqSlots = constants.GAME_DEFAULT_CONFIG.slots;
+  if (reqSlots.length > constants.GAME_MAX_SLOTS) {
+    return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG, {
+      reason: "Too many slots."
+    })); 
+  }
+  var slots = [];
+  var isRandom = false;
+  var displayNames = [];
+  var creatorSlots = 0;
+  for (var i in reqSlots) {
+    var reqSlot = reqSlots[i];
+    var slot = {};
+    slot.type = SlotType.parse(reqSlot.type);
+    if (slot.type === null) {
+      return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG, {
+        reason: "Missing or invalid slot type."
+      }));
+    }
 
-  config.set("slotNum", slotNum);
+    slot.avatar = typeof(reqSlot.avatar) == "number" ? Number(reqSlot.avatar) : NaN;
+    if (isNaN(slot.avatar)) {
+      return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG, {
+        reason: "Missing or invalid slot avatar index."
+      }));
+    }
+
+    switch (slot.type) {
+      case SlotType.Creator:
+        creatorSlots++;
+        break;
+      case SlotType.Open:
+        isRandom = true;
+        break;
+      case SlotType.Invite:
+        if (typeof(reqSlot.displayName) != "string") {
+          return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG, {
+            reason: "Missing or invalid invite slot display name."
+          }));
+        }
+        displayNames.push({ slot: slot, name: reqSlot.displayName });
+        break;
+      case SlotType.AI:
+        slot.difficulty = AIDifficulty.parse(reqSlot.difficulty);
+        if (slot.difficulty === null) {
+          return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG, {
+            reason: "Missing or invalid ai slot difficulty."
+          }));
+        }
+        break;
+    }
+
+    slots.push(slot);
+  }
+  config.set("slotNum", slots.length);
   config.set("isRandom", isRandom);
-  
+
+  if (creatorSlots != 1) {
+    return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG, {
+      reason: "Exactly one creator slot must be present."
+    }));
+  }
+
+  var turnMaxSec = req.params.turnMaxSec === undefined ?
+    undefined : Number(req.params.turnMaxSec);
+  if (turnMaxSec === undefined || isNaN(turnMaxSec)) {
+    turnMaxSec = constants.GAME_DEFAULT_CONFIG.turnMaxSec;
+  }
+  config.set("turnMaxSec", turnMaxSec);
+
   var reqFameCards = req.params.fameCards;
   var fameCards = {};
   if (reqFameCards) {
@@ -681,11 +778,47 @@ function createConfigFromRequest(req) {
       }
     }
   }
-
   config.set("fameCards", fameCards);
-  config.set("aiDifficulty", aiDifficulty);
-  config.set("turnMaxSec", turnMaxSec);
-  return config.save();
+
+  var userQuery = new Query(Parse.User);
+  return userQuery
+    .containedIn("displayName", displayNames.map(function(dn) {
+      return dn.name;
+    }))
+    .find()
+    .then(
+      function(users) {
+        if (!users || users.length != displayNames.length) {
+          return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG, {
+            reason: "Invite slot user(s) duplicate or not found."
+          }));
+        }
+
+        var userIds = {};
+        userIds[req.user.id] = true;
+        users.forEach(function(user) {
+          // Duplicate check
+          if (userIds[user.id]) {
+            return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG, {
+              reason: "Duplicate slot users."
+            }));
+          }
+          userIds[user.id] = true;
+
+          // Display name to user ID map
+          var dn = displayNames.find(function(dn) {
+            return dn.name == user.get("displayName");
+          });
+          if (dn) dn.slot.userId = user.id;
+        }, this);
+
+        config.set("slots", slots);
+
+        // TODO push notifications for invites
+        
+        return config.save();
+      }
+    );
 }
 
 function createGameFromConfig(user, config) {
@@ -717,8 +850,8 @@ function createGameFromConfig(user, config) {
     }
   ).then(
     function(job) {
-      // Set creator player as the current player
-      game.set("currentPlayer", gameInfo.player);
+      // Current player set on game start
+      game.set("currentPlayer", null);
 
       // Set game state to Lobby
       game.set("state", GameState.Lobby);
@@ -880,10 +1013,23 @@ function startGame(game) {
   var stateResult = checkGameState(game, [GameState.Lobby]);
   if (stateResult.error) return Promise.reject(new CodedError(stateResult.error, stateResult.context));
   
-  game.set("state", GameState.Running);
+  var playerQuery = new Query(Player);
+  playerQuery
+    .equalTo("game", game)
+    .equalTo("state", PlayerState.Active)
+    .equalTo("slot", 0)
 
-  return Promise.when(game.save(), removeJob(game.get("lobbyTimeoutJob")))
+  return Promise.when(playerQuery.first(), removeJob(game.get("lobbyTimeoutJob")))
     .then(
+      function(p) {
+        if (!p) {
+          return Promise.reject(new CodedError(constants.t.GAME_START_ERROR));
+        }
+        game.set("currentPlayer", p);
+        game.set("state", GameState.Running);
+        return game.save();
+      }
+    ).then(
       function(g) {
         game = g;
         return notifyGame(game, constants.t.GAME_STARTED, { game: game });
@@ -903,16 +1049,65 @@ function joinGame(game, user) {
   var player;
   var playerCount;
   
-  function getPlayer(game, user) {
-    var player = new Player();
-    player.set("game", game);
-    player.set("user", user);
-    player.set("state", PlayerState.Active);
-    return player.save();
+  var initial = game.get("state") == GameState.Init;
+  var config = game.get("config");
+  var slots = config.get("slots");
+  var reservedIndex = -1;
+  for (var i = 0; i < slots.length; i++) {
+    var slot = slots[i];
+    switch (slot.type) {
+      case SlotType.Creator:
+        if (user.id == game.get("creator").id) {
+          reservedIndex = i;
+        }
+        break;
+      case SlotType.Invite:
+        if (user.id == slot.userId) {
+          reservedIndex = i;
+        }
+        break;
+    }
+    if (reservedIndex != -1) break;
   }
   
-  var initial = game.get("state") == GameState.Init;
-  return getPlayer(game, user).then(
+  var slotIndexPromise;
+  if (reservedIndex != -1) {
+    slotIndexPromise = Promise.resolve(reservedIndex);
+  } else {
+    var playerQuery = new Query(Player);
+    slotIndexPromise = playerQuery
+      .equalTo("game", game)
+      .equalTo("state", PlayerState.Active)
+      .find()
+      .then(
+        function(players) {
+          players.forEach(function(player) {
+            slots[player.get("slot")].filled = true;
+          }, this);
+          var openIndex = slots.findIndex(function(slot) {
+            return slot.type == SlotType.Open && !slot.filled;
+          });
+          if (openIndex >= 0 && openIndex < slots.length) {
+            return Promise.resolve(openIndex);
+          }
+          return Promise.reject(new CodedError(constants.t.GAME_FULL));
+        }
+      );
+  }
+  
+  return slotIndexPromise.then(
+    function(slotIndex) {
+      if (slotIndex == -1) {
+        return Promise.reject(new CodedError(constants.t.GAME_FULL));
+      }
+      var player = new Player();
+      player.set("game", game);
+      player.set("user", user);
+      player.set("state", PlayerState.Active);
+      player.set("slot", slotIndex);
+      return player.save();
+    }
+  ).then(
     function(p) {
       player = p;
       if (initial) return Promise.resolve();
@@ -927,7 +1122,6 @@ function joinGame(game, user) {
     function(c) {
       playerCount = c;
       if (initial) return Promise.resolve(game);
-      var config = game.get("config");
       var maxPlayers = config.get("slotNum");
       var promise;
       if (playerCount > maxPlayers) {
@@ -1470,7 +1664,7 @@ Parse.Cloud.define("gameTurn", function(req, res) {
           return Promise.reject(new CodedError(constants.t.TURN_NOT_IT));
         }
 
-        var save = String(req.params.state);
+        var save = String(req.params.save);
         // TODO: validate
 
         var turn = new Turn();
@@ -1510,19 +1704,13 @@ Parse.Cloud.define("gameTurn", function(req, res) {
     );
 });
 
-// DONE get next player by date
-// DONE wrap if no newer player found by getting the oldest player
-// DONE check player state (active, not disconnected, etc.)
-// DONE make sure that empty results due to player state or otherwise
-//      don't put the next player search into a frenzy or loop, add tests?
-
 /**
- * Finds the player that should have the next turn from oldest to newest.
+ * Finds the player that should have the next turn by slot order.
  * For only one player it always returns that player.
  * If no player was found (i.e. the game has no active players) it returns null.
  * 
  * Returns a promise with either a fulfilled player value (or null) or rejected
- * with an error. 
+ * with an error.
  */
 function findNextPlayer(game) {
   var currentPlayer = game.get("currentPlayer");
@@ -1530,26 +1718,26 @@ function findNextPlayer(game) {
     return Promise.reject(new CodedError(constants.t.PLAYER_NEXT_NO_CURRENT));
   }
 
-  // console.log("Current player created at:\n ", currentPlayer.createdAt);
+  // console.log("Current player slot:\n ", currentPlayer.get("slot"));
 
   function getNextPlayerQuery() {
     var query = new Query(Player);
     query.equalTo("game", game);
     query.equalTo("state", PlayerState.Active);
-    query.addAscending("createdAt");
+    query.addAscending("slot");
     return query;
   }
 
   var query;
   
   query = getNextPlayerQuery();
-  query.greaterThanOrEqualTo("createdAt", currentPlayer.createdAt);
+  query.greaterThanOrEqualTo("slot", currentPlayer.get("slot"));
   query.notEqualTo("objectId", currentPlayer.id);
 
   return query.first().then(
     function(nextPlayer) {
       if (nextPlayer) {
-        // console.log("Next newer player created at:\n ", nextPlayer.createdAt);
+        // console.log("Next newer player slot:\n ", nextPlayer.get("slot"));
         return Promise.resolve(nextPlayer);
       } else {
         query = getNextPlayerQuery();
@@ -1562,7 +1750,50 @@ function findNextPlayer(game) {
 
 
 
+Parse.Cloud.beforeSave(Parse.User, function(req, res) {
+    var user = req.object;
 
+    var email = user.get("email");
+    if
+      (
+        !email || 
+        typeof(email) !== "string" ||
+        email.indexOf("@") == -1
+      )
+    {
+      res.error(constants.t.INVALID_PARAMETER);
+      return;
+    }
+
+    user.set("username", email);
+
+    var displayName = user.get("displayName");
+
+    if
+      (
+        !displayName || 
+        typeof(displayName) !== "string" ||
+        displayName.length < constants.DISPLAY_NAME_MIN ||
+        displayName.length > constants.DISPLAY_NAME_MAX
+      )
+    {
+      res.error(constants.t.INVALID_PARAMETER);
+      return;
+    }
+
+    var query = new Query(Parse.User);
+    query.equalTo("displayName", displayName);
+    query.first().then(
+      function(result) {
+        if (result) {
+          res.error(constants.t.DISPLAY_NAME_TAKEN);
+        } else {
+          res.success();
+        }
+      },
+      respondError(res)
+    );
+});
 
 
 // TODO: add beforeSave validation

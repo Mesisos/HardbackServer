@@ -7,7 +7,19 @@
 	"email": "string",
 	"emailVerified": "boolean",
 	"authData": "object",
-	"displayName": "string"
+	"displayName": "string",
+	"_metadata": {
+		"class_permissions": {
+			"get": {},
+			"find": {},
+			"create": {
+				"*": true
+			},
+			"update": {},
+			"delete": {},
+			"addField": {}
+		}
+	}
 }
 {
 	"_id": "Game",
@@ -19,9 +31,21 @@
 	"config": "*Config",
 	"creator": "*_User",
 	"currentPlayer": "*Player",
+	"consecutiveTurnTimeouts": "number",
 	"lobbyTimeoutJob": "number",
 	"turnTimeoutJob": "number",
-	"consecutiveTurnTimeouts": "number"
+	"_metadata": {
+		"class_permissions": {
+			"get": {},
+			"find": {},
+			"create": {},
+			"update": {},
+			"delete": {},
+			"addField": {
+				"*": true
+			}
+		}
+	}
 }
 {
 	"_id": "Config",
@@ -32,7 +56,19 @@
 	"isRandom": "boolean",
 	"turnMaxSec": "number",
 	"fameCards": "object",
-	"aiDifficulty": "number"
+	"_metadata": {
+		"class_permissions": {
+			"get": {},
+			"find": {},
+			"create": {},
+			"update": {},
+			"delete": {},
+			"addField": {
+				"*": true
+			}
+		}
+	},
+	"slots": "array"
 }
 {
 	"_id": "Player",
@@ -41,7 +77,20 @@
 	"createdAt": "date",
 	"game": "*Game",
 	"user": "*_User",
-	"state": "number"
+	"state": "number",
+	"_metadata": {
+		"class_permissions": {
+			"get": {},
+			"find": {},
+			"create": {},
+			"update": {},
+			"delete": {},
+			"addField": {
+				"*": true
+			}
+		}
+	},
+	"slot": "number"
 }
 {
 	"_id": "_Session",
@@ -62,8 +111,18 @@
 	"createdAt": "date",
 	"game": "*Game",
 	"turn": "number",
-	"save": "string",
-	"player": "*Player"
+	"player": "*Player",
+	"_metadata": {
+		"class_permissions": {
+			"get": {},
+			"find": {},
+			"create": {},
+			"update": {},
+			"delete": {},
+			"addField": {}
+		}
+	},
+	"save": "string"
 }
 {
 	"_id": "Contact",
@@ -71,14 +130,38 @@
 	"updatedAt": "date",
 	"createdAt": "date",
 	"user": "*_User",
-	"contact": "*_User"
+	"contact": "*_User",
+	"_metadata": {
+		"class_permissions": {
+			"get": {},
+			"find": {},
+			"create": {},
+			"update": {},
+			"delete": {},
+			"addField": {
+				"*": true
+			}
+		}
+	}
 }
 {
 	"_id": "Invite",
 	"objectId": "string",
 	"updatedAt": "date",
 	"createdAt": "date",
-	"inviter": "*Player"
+	"inviter": "*Player",
+	"_metadata": {
+		"class_permissions": {
+			"get": {},
+			"find": {},
+			"create": {},
+			"update": {},
+			"delete": {},
+			"addField": {
+				"*": true
+			}
+		}
+	}
 }
 {
 	"_id": "_Installation",

@@ -1,5 +1,9 @@
 module.exports = Object.freeze({
 
+  INVITE_URL_PREFIX: process.env.SERVER_ROOT + "/join/",
+
+
+
   FAME_CARD_NAMES: [
     "The Chinatown Connection",
     "Dead Planet",
@@ -7,20 +11,27 @@ module.exports = Object.freeze({
     "Lady of the West"
   ],
 
-  INVITE_URL_PREFIX: process.env.SERVER_ROOT + "/join/",
 
   GAME_DEFAULT_CONFIG: {
-    slotNum: 4,
-    isRandom: false,
+    slots: [
+      { "type": "creator", "avatar": 0 },
+      { "type": "open", "avatar": 1 },
+      { "type": "open", "avatar": 2 },
+      { "type": "open", "avatar": 3 }
+    ],
     fameCards: {},
-    aiDifficulty: 0,
     turnMaxSec: 10
   },
+
+  GAME_MAX_SLOTS: 16,
 
   START_GAME_MANUAL_TIMEOUT: 10,
   START_GAME_AUTO_TIMEOUT: 2*24*60*60,
 
   GAME_ENDING_INACTIVE_ROUNDS: 2,
+
+  DISPLAY_NAME_MIN: 2,
+  DISPLAY_NAME_MAX: 30,
 
   GAME_PAGING: {
     limit: {
@@ -77,11 +88,44 @@ module.exports = Object.freeze({
     Inactive: 1
   },
 
+  SlotType: {
+    Creator: "creator",
+    Open: "open",
+    Invite: "invite",
+    None: "none",
+    AI: "ai",
+
+    parse: function(type) {
+      switch (type) {
+        case SlotType.Creator:
+        case SlotType.Open:
+        case SlotType.Invite:
+        case SlotType.None:
+        case SlotType.AI:
+          break;
+        default: return null;
+      }
+      return type;
+    }
+  },
+
   AIDifficulty: {
     None:   0,
     Easy:   1,
     Medium: 2,
-    Hard:   3
+    Hard:   3,
+
+    parse: function(type) {
+      switch (type) {
+        case AIDifficulty.None:
+        case AIDifficulty.Easy:
+        case AIDifficulty.Medium:
+        case AIDifficulty.Hard:
+          break;
+        default: return null;
+      }
+      return type;
+    }
   },
 
   /**
@@ -132,6 +176,9 @@ module.exports = Object.freeze({
     USER_NOT_FOUND: { id: 1004, m:
       "User not found."
     },
+    DISPLAY_NAME_TAKEN: { id: 1005, m:
+      "Display name already taken."
+    },
 
     GAME_INVALID_STATE: { id: 1100, m:
       "Game state '{{stateName}}' does not accept this operation. Supported states: {{acceptableNames}}"
@@ -162,6 +209,9 @@ module.exports = Object.freeze({
     },
     GAME_INVALID_TIMEOUT: { id: 1109, m:
       "Invalid game timeout: {{timeout}}"
+    },
+    GAME_INVALID_CONFIG: { id: 1110, m:
+      "Invalid game configuration: {{reason}}"
     },
 
     PLAYER_ALREADY_IN_GAME: { id: 1200, m: 

@@ -124,10 +124,10 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 
 ## Security
 * [ ] HTTPS!
-* [ ] Lock down various leaky REST call
+* [X] ~~*Lock down various leaky REST call*~~
   * [ ] Update Parse server to latest npm for filtering user emails, etc.
-  * [ ] `ClassesRouter`: `parse/classes/_User` & co.
-  * [ ] `UsersRouter`: `parse/users` & co.
+  * [X] ~~*`ClassesRouter`: `parse/classes/_User` & co.*~~
+  * [X] ~~*`UsersRouter`: `parse/users` & co.*~~
 * [ ] Input validation (e.g. for save games)
 * [ ] Access security
 * [ ] Do we need to hide User object IDs?
@@ -189,10 +189,17 @@ For Parse server-level errors, see Parse Server documentation.
 ### Request parameters
 ```
 {
-  "username": "Signuper",
+  // Email that also acts as a username for the user.
+  "email": "test@example.com",
+  
+  // Username is set to be the same as the email automatically, so this field is
+  // ignored, but it cannot be omitted or you will get an error.
+  "username": "",
+  
   "password": "password",
-  "displayName": "Signey",
-  "email": "test@example.com"
+
+  // Required to be unique, you can check for availability with `checkNameFree`.
+  "displayName": "Signey"
 }
 ```
 ### Response
@@ -218,11 +225,20 @@ For Parse server-level errors, see Parse Server documentation.
 
 ```
 ```
+// This applies for email as well, since they are equivalent.
 {
   "code": 202,
   "error": "Account already exists for this username."
 }
-
+```
+```
+{
+	"code": 141,
+	"error": {
+		"id": 1005,
+		"m": "Display name already taken."
+	}
+}
 ```
 
 ## Reset password via `REST_requestPasswordReset`
@@ -274,6 +290,14 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 3 -> Hard
 ```
 
+### Slot Types
+```
+"creator"
+"open"
+"invite"
+"none"
+"ai"
+```
 
 ## `checkNameFree`
 ### Request
@@ -298,16 +322,47 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ### Request
 ```
 {
-  "slotNum": 2,
 
-  "isRandom": true|false,
+  // You can provide any number of slots (within reason)
+  // for the game, but there has to be exactly
+  // one `creator` slot.
+  // The order of the slots defines the order
+  // of the game turns / rounds.
+  //
+  // This generates a `slotNum` field, which just holds
+  // the number of slots provided, and an `isRandom` field,
+  // which is `true` if there are any `open`-type slots. 
+  "slots": [
+
+    // A publicly open slot, at least one
+    // slot has to be open to mark the game as `isRandom`
+    // and make it findable via `findGames`
+    { "type": "open", "avatar": 0 },
+
+    // Exactly one of these has to be present. The creator
+    // gets automatically assigned to this slot.
+    { "type": "creator", "avatar": 3 },
+
+    // Reserved slot by display name. Converted to `userId`
+    // on game creation to lock down the specified user, which
+    // might be useful if display names are ever changeable.
+    { "type": "invite", "avatar": 2, "displayName": "name" },
+
+    // AI-type slot, not implemented correctly right now.
+    // `difficulty` is an integer enum defined above.
+    { "type": "ai", "avatar": 2, "difficulty": integer },
+    
+    // Accepted for now, but not really useful? Maybe for easier
+    // mapping of indices.
+    { "type": "none", "avatar": 1 },
+  ],
+
   "fameCards": {
     "The Chinatown Connection": 6,
     "Dead Planet": 4,
     "Vicious Triangle": 3,
     "Lady of the West": 1
   },
-  "aiDifficulty": 0|1|2|3,
 
   // After this many seconds, the turn ends automatically and the game
   // transitions to the next player
@@ -336,6 +391,9 @@ All of the cloud functions below require you to be logged in as a user. Email ve
   // Player object of the user
   "player": {
     "objectId": "id",
+    // Slot index number of the player
+    // Assigned automatically based on the provided slots
+    "slot": integer
     ...
   }
 }
@@ -414,7 +472,18 @@ All of the cloud functions below require you to be logged in as a user. Email ve
   "code": GAME_LIST,
 
   // Game objects with `isRandom` being `true`
-  "games": [...]
+  "games": [
+    {
+      ...
+      // `true` when you have already joined this game, otherwise `false`.
+      "joined": true,
+
+      // Number of free open slots available. This excludes invite slots and
+      // open slots already taken up by other players.
+      "freeSlots": 1,
+      ...
+    }
+  ]
 }
 ```
 
@@ -440,6 +509,10 @@ All of the cloud functions below require you to be logged in as a user. Email ve
     // Game one
     {
       "objectId": "idA",
+
+      // Number of free open slots available. This excludes invite slots,
+      // the creator slot and open slots already taken up by other players.
+      "freeSlots": 1,
       ...
     },
     // Game two
@@ -499,11 +572,13 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 
 
 ## `gameTurn`
+Add a new game turn. The player order is based on the slot index. Lower slot
+indexes are first, then it wraps around.
 ### Request
 ```
 {
   "gameId": "id",
-  "state": "save contents",
+  "save": "save contents",
   "final": true|false
 }
 ```
@@ -536,13 +611,21 @@ All of the cloud functions below require you to be logged in as a user. Email ve
   "turns": [
     {
       // Player object (with a User)
-      "player": {...}
+      "player": {...},
       // Turn index
-      "turn": integer
+      "turn": integer,
+      // Save contents
+      "save": string
     },
     {
-      "player": {...}
-      "turn": integer
+      "player": {...},
+      "turn": 3,
+      "save": "qwertz"
+    },
+    {
+      "player": {...},
+      "turn": 2,
+      "save": "asdfg"
     },
     ...
   ]

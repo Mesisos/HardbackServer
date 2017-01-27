@@ -9,6 +9,7 @@ var GameState = constants.GameState;
 var AIDifficulty = constants.AIDifficulty;
 
 var timeoutMultiplier = 1;
+var testTimeouts = false;
 
 var should = require('chai').should();
 var fs = require('fs');
@@ -297,7 +298,7 @@ function internalStartGame(name, game, desc, customFunc, delay) {
 }
 
 function waitAndStartGame(name, game, desc, customFunc) {
-  internalStartGame(name, game, desc, customFunc, constants.START_GAME_MANUAL_TIMEOUT*1000);
+  if (testTimeouts) internalStartGame(name, game, desc, customFunc, constants.START_GAME_MANUAL_TIMEOUT*1000);
 }
 
 function startGame(name, game, desc, customFunc) {
@@ -336,7 +337,7 @@ function makeTurn(name, game, type, turnNumber) {
   it('should ' + msg + ' game turn by ' + name, function() {
     return parseCall(name, "gameTurn", {
       gameId: game.id,
-      state: "turn " + turnNumber,
+      save: "turn " + turnNumber,
       final: type == "finish"
     }).then(
       function(entity) {
@@ -448,10 +449,11 @@ describe('game flow', function() {
 
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
-        "slotNum": 2,
-        "isRandom": false,
+        "slots": [
+          { "type": "creator", "avatar": 0 },
+          { "type": "open", "avatar": 0 }
+        ],
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 60
       }).then(
         function(entity) {
@@ -461,10 +463,9 @@ describe('game flow', function() {
 
           var config = result.game.config;
           config.slotNum.should.equal(2);
-          config.isRandom.should.equal(false);
+          config.isRandom.should.equal(true);
           config.fameCards.should.have.property("The Chinatown Connection");
           config.fameCards["The Chinatown Connection"].should.equal(3);
-          config.aiDifficulty.should.equal(0);
           config.turnMaxSec.should.equal(60);
           gameByName.Alice = game.id;
         }
@@ -517,6 +518,7 @@ describe('game flow', function() {
     
     joinGame("Bob", game);
 
+
     getGame("Alice", game, '', function(game) {
       game.state.should.equal(GameState.Running);
       game.turn.should.equal(0);
@@ -529,10 +531,7 @@ describe('game flow', function() {
 
     it('creates another game with Bob', function() {
       return parseCall("Bob", "createGame", {
-        "slotNum": 4,
-        "isRandom": false,
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 60
       }).then(
         function(entity) {
@@ -540,6 +539,7 @@ describe('game flow', function() {
         }
       );
     });
+
 
     var turnNumber = 0;
 
@@ -676,22 +676,103 @@ describe('game flow', function() {
 
   });
 
+  describe('turn order with complex slots', function() {
+
+    var game = {};
+
+    it('creates a game and gets the game id with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        "slots": [
+          { "type": "invite", "avatar": 0, "displayName": "Carry" },
+          { "type": "open", "avatar": 1 },
+          { "type": "invite", "avatar": 2, "displayName": "Bobzor" },
+          { "type": "creator", "avatar": 3 },
+        ],
+        "turnMaxSec": 60
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+          var result = entityResult(entity, constants.t.GAME_CREATED);
+          result.game.state.should.equal(GameState.Lobby);
+        }
+      );
+    });
+
+    joinGame("Bob", game);
+    joinGame("Dan", game);
+    joinGame("Carol", game);
+    
+    getGame("Alice", game, '', function(game) {
+      game.state.should.equal(GameState.Running);
+      game.turn.should.equal(0);
+    });
+
+    var turnNumber = 0;
+
+    makeTurn("Alice", game, "deny",  turnNumber);
+    makeTurn("Bob",   game, "deny",  turnNumber);
+    makeTurn("Dan",   game, "deny",  turnNumber);
+    makeTurn("Carol", game, "allow", turnNumber++);
+    makeTurn("Alice", game, "deny",  turnNumber);
+    makeTurn("Bob",   game, "deny",  turnNumber);
+    makeTurn("Carol", game, "deny",  turnNumber);
+    makeTurn("Dan",   game, "allow", turnNumber++);
+    makeTurn("Alice", game, "deny",  turnNumber);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "deny",  turnNumber);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Carol", game, "allow", turnNumber++);
+    makeTurn("Dan",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Carol", game, "allow", turnNumber++);
+    makeTurn("Dan",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Carol", game, "allow", turnNumber++);
+    makeTurn("Dan",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+
+    getGame("Dan", game, '', function(game) {
+      game.state.should.equal(GameState.Running);
+      game.turn.should.equal(16);
+    });
+    
+    makeTurn("Carol", game, "finish", turnNumber++);
+
+    getGame("Bob", game, 'should get the ended game state with one more turn', function(game) {
+      game.state.should.equal(GameState.Ended);
+      game.turn.should.equal(17);
+    });
+
+    makeTurn("Alice", game, "invalid");
+    makeTurn("Bob",   game, "invalid");
+    makeTurn("Carol", game, "invalid");
+    makeTurn("Dan",   game, "invalid");
+
+  });
+
   describe('find games', function() {
 
     var gameInfos = [];
     var gameToJoin = {};
     var gameNum = 7;
 
-    it('should remove random games first', function() {
-      return parseCall({ useMasterKey: true }, "purgeRandomGames",
-        {}
-      ).then(
-        function(result) {
-          result.should.have.property("result");
-          should.equal(result.result.purged, true);
-        }
-      );
-    });
+    function purgeRandom() {
+      it('should remove random games first', function() {
+        return parseCall({ useMasterKey: true }, "purgeRandomGames",
+          {}
+        ).then(
+          function(result) {
+            result.should.have.property("result");
+            should.equal(result.result.purged, true);
+          }
+        );
+      });
+    }
+
+    purgeRandom();
 
     it('finds no games with Bob after all of them are removed', function() {
       return parseCall("Bob", "findGames", {
@@ -706,10 +787,7 @@ describe('game flow', function() {
 
     function createRandomGame(gameInfos) {
       return parseCall("Alice", "createGame", {
-        "slotNum": 3,
-        "isRandom": true,
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 60
       }).then(
         function(entity) {
@@ -738,6 +816,7 @@ describe('game flow', function() {
             should.exist(game);
             game.should.have.property("objectId");
             game.objectId.should.equal(gameInfos[gameIndex].game.objectId);
+            game.joined.should.equal(false);
           }
         }
       );
@@ -800,6 +879,7 @@ describe('game flow', function() {
           should.exist(game);
           game.should.have.property("objectId");
           game.objectId.should.equal(gameInfos[1].game.objectId);
+          game.joined.should.equal(false);
           gameToJoin.id = game.objectId;
         }
       );
@@ -811,6 +891,146 @@ describe('game flow', function() {
       resultShouldError(constants.t.PLAYER_ALREADY_IN_GAME)
     );
 
+    it('verified joined status for three games', function() {
+      return parseCall("Bob", "findGames", {
+        "limit": 3,
+        "skip": 0
+      }).then(
+        function(entity) {
+          var result = entityResult(entity, constants.t.GAME_LIST);
+          var games = result.games;
+          for (var gameIndex = 0; gameIndex < 3; gameIndex++) {
+            var game = games[gameIndex];
+            game.joined.should.equal(gameIndex == 1);
+          }
+        }
+      );
+    });
+
+    describe('free slots', function() {
+
+      function createGameSlotsCheck(entity) {
+        var gameInfo = entityResult(entity, constants.t.GAME_CREATED);
+        gameInfo.game.config.should.have.property("slots");
+        game.id = gameInfo.game.objectId;
+      }
+      function createGameSlots(game, slots, desc, resultFunc) {
+        if (!desc) desc = "create game with " + slots.length + " slots";
+        it(desc, function() {
+          return parseCall("Alice", "createGame", {
+            "slots": slots
+          }).then(
+            function(entity) {
+              if (resultFunc) resultFunc(entity);
+              else createGameSlotsCheck(entity);
+            }
+          );
+        });
+      }
+
+      function checkFreeSlots(game, desc, slotNum) {
+        it("should equal " + slotNum + " for " + desc, function() {
+          return parseCall("Alice", "findGames", {}).then(
+            function(entity) {
+              var result = entityResult(entity, constants.t.GAME_LIST);
+              result.should.have.property("games");
+              if (slotNum == -1) {
+                result.games.length.should.equal(0);
+              } else {
+                result.games.length.should.equal(1);
+                result.games[0].freeSlots.should.equal(slotNum);
+              }
+            }
+          );
+        });
+      }
+
+      var game = {};
+      function testGameSlots(desc, slotNum, slots) {
+        purgeRandom();
+        createGameSlots(game, desc, slots);
+        checkFreeSlots(game, slotNum);
+      }
+      
+      purgeRandom();
+      createGameSlots(game, [
+        { type: "creator", avatar: 0 },
+        { type: "none", avatar: 1 },
+        { type: "none", avatar: 2 },
+        { type: "none", avatar: 3 }
+      ]);
+      checkFreeSlots(game, 'game with no open slots', -1);
+      
+      purgeRandom();
+      createGameSlots(game, [
+        { type: "creator", avatar: 0 },
+        { type: "open", avatar: 1 },
+        { type: "none", avatar: 2 },
+        { type: "none", avatar: 3 }
+      ]);
+      checkFreeSlots(game, 'game with one open slot', 1);
+
+      purgeRandom();
+      createGameSlots(game, [
+        { type: "creator", avatar: 0 },
+        { type: "open", avatar: 0 },
+        { type: "open", avatar: 0 },
+        { type: "none", avatar: 0 }
+      ]);
+      checkFreeSlots(game, 'game with two open slots', 2);
+
+      purgeRandom();
+      createGameSlots(game, [
+        { type: "creator", avatar: 0 },
+        { type: "open", avatar: 0 },
+        { type: "invite", avatar: 0, displayName: "Bobzor" },
+        { type: "none", avatar: 0 }
+      ]);
+      checkFreeSlots(game, 'game with one open slot and one invite slot', 1);
+      
+      purgeRandom();
+      createGameSlots(game, [
+        { type: "creator", avatar: 0 },
+        { type: "open", avatar: 0 },
+        { type: "open", avatar: 0 },
+        { type: "open", avatar: 0 }
+      ]);
+      joinGame("Bob", game);
+      checkFreeSlots(game, 'game with three open slots, one filled', 2);
+      
+      purgeRandom();
+      createGameSlots(game, [
+        { type: "creator", avatar: 0 },
+        { type: "open", avatar: 0 },
+        { type: "invite", avatar: 0, displayName: "Bobzor" },
+        { type: "open", avatar: 0 }
+      ]);
+      joinGame("Bob", game);
+      joinGame("Carol", game);
+      checkFreeSlots(game, 'game with one invite, two open slots, one filled', 1);
+      
+      purgeRandom();
+      createGameSlots(game, [
+        { type: "creator", avatar: 0 },
+        { type: "open", avatar: 0 },
+        { type: "invite", avatar: 0, displayName: "Bobzor" },
+        { type: "invite", avatar: 0, displayName: "Carry" },
+      ]);
+      joinGame("Bob", game);
+      joinGame("Carol", game);
+      checkFreeSlots(game, 'game with two invites, one open', 1);
+      
+      purgeRandom();
+      createGameSlots(game, [
+        { type: "creator", avatar: 0 },
+        { type: "invite", avatar: 0, displayName: "Bobzor" },
+        { type: "invite", avatar: 0, displayName: "Bobzor" },
+        { type: "open", avatar: 0 }
+      ], "duplicate invites should error", resultShouldError(constants.t.GAME_INVALID_CONFIG));
+
+    });
+
+
   });
 
 
@@ -821,10 +1041,12 @@ describe('game flow', function() {
 
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
-        "slotNum": 3,
-        "isRandom": false,
+        "slots": [
+          { "type": "creator", "avatar": 0 },
+          { "type": "open", "avatar": 0 },
+          { "type": "open", "avatar": 0 }
+        ],
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 60
       }).then(
         function(entity) {
@@ -836,10 +1058,12 @@ describe('game flow', function() {
 
     it('creates a game and gets the game id with Bob', function() {
       return parseCall("Bob", "createGame", {
-        "slotNum": 2,
-        "isRandom": false,
+        "slots": [
+          { "type": "creator", "avatar": 0 },
+          { "type": "open", "avatar": 0 },
+          { "type": "open", "avatar": 0 }
+        ],
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 60
       }).then(
         function(entity) {
@@ -900,10 +1124,12 @@ describe('game flow', function() {
     
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
-        "slotNum": 3,
-        "isRandom": false,
+        "slots": [
+          { "type": "creator", "avatar": 0 },
+          { "type": "open", "avatar": 0 },
+          { "type": "open", "avatar": 0 }
+        ],
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 7
       }).then(
         function(entity) {
@@ -1112,16 +1338,17 @@ describe("kue", function() {
   before(getUserSessions);
 
   
-  describe("lobby timeout job", function() {
+  if (testTimeouts) describe("lobby timeout job", function() {
 
     var game = {};
 
-    it('creates a game and waits for timeout with Alice', function() {
+    if (testTimeouts) it('creates a game and waits for timeout with Alice', function() {
       return parseCall("Alice", "createGame", {
-        "slotNum": 2,
-        "isRandom": false,
+        "slots": [
+          { "type": "creator", "avatar": 0 },
+          { "type": "open", "avatar": 0 }
+        ],
         "fameCards": {},
-        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 60
       }).then(
         function(entity) {
@@ -1170,10 +1397,11 @@ describe("kue", function() {
 
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
-        "slotNum": 2,
-        "isRandom": false,
+        "slots": [
+          { "type": "creator", "avatar": 0 },
+          { "type": "open", "avatar": 0 }
+        ],
         "fameCards": {},
-        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 60
       }).then(
         function(entity) {
@@ -1203,8 +1431,10 @@ describe("kue", function() {
 
     it('creating a game with Alice', function() {
       return parseCall("Alice", "createGame", {
-        "slotNum": 2,
-        "isRandom": false,
+        "slots": [
+          { "type": "creator", "avatar": 0 },
+          { "type": "open", "avatar": 0 }
+        ],
         "turnMaxSec": turnMaxSec
       }).then(
         function(entity) {
@@ -1257,34 +1487,36 @@ describe("kue", function() {
 
     makeTurn("Alice", game, "deny", turnNumber);
     
-    it("should advance to the next player after timeout", function() {
-      var promise = new Promise();
-      setTimeout(function() {
-        promise.resolve();
-      }, turnMaxSec*1000 + 1000);
-      this.timeout(turnMaxSec*1000 + 2000);
+    if (testTimeouts) {
+      it("should advance to the next player after timeout", function() {
+        var promise = new Promise();
+        setTimeout(function() {
+          promise.resolve();
+        }, turnMaxSec*1000 + 1000);
+        this.timeout(turnMaxSec*1000 + 2000);
 
-      return promise.then(
-        function() {
-          return parseCall({ useMasterKey: true }, "debugGame", {
-            gameId: game.id
-          });
-        }
-      ).then(
-        function(entity) {
-          var result = entityResult(entity);
-          result.should.have.property("turnTimeoutJob");
-          result.turnTimeoutJob.should.not.equal(game.turnTimeoutJob);
-          game.turnTimeoutJob = result.turnTimeoutJob;
-        }
-      )
-    });
+        return promise.then(
+          function() {
+            return parseCall({ useMasterKey: true }, "debugGame", {
+              gameId: game.id
+            });
+          }
+        ).then(
+          function(entity) {
+            var result = entityResult(entity);
+            result.should.have.property("turnTimeoutJob");
+            result.turnTimeoutJob.should.not.equal(game.turnTimeoutJob);
+            game.turnTimeoutJob = result.turnTimeoutJob;
+          }
+        )
+      });
+      makeTurn("Bob", game, "deny", turnNumber);
+      makeTurn("Alice", game, "allow", turnNumber++);
+    }
 
-    makeTurn("Bob", game, "deny", turnNumber);
-    makeTurn("Alice", game, "allow", turnNumber++);
     makeTurn("Bob", game, "finish", turnNumber++);
 
-    it('should be different after a few turns', function() {
+    if (testTimeouts) it('should be different after a few turns', function() {
       return parseCall({ useMasterKey: true }, "debugGame", {
         gameId: game.id
       }).then(
@@ -1304,16 +1536,21 @@ describe("kue", function() {
   });
 
   
-  describe("game ending turn timeout job", function() {
+  if (testTimeouts) describe("game ending turn timeout job", function() {
 
-    var slotNum = 2;
+    var slots = [
+      { "type": "creator", "avatar": 0 },
+      { "type": "open", "avatar": 0 }
+    ];
     var turnMaxSec = 1*timeoutMultiplier;
     var game = {};
 
     it('creating a game with Alice', function() {
       return parseCall("Alice", "createGame", {
-        "slotNum": slotNum,
-        "isRandom": false,
+        "slots": [
+          { "type": "creator", "avatar": 0 },
+          { "type": "open", "avatar": 0 }
+        ],
         "turnMaxSec": turnMaxSec
       }).then(
         function(entity) {
@@ -1365,7 +1602,7 @@ describe("kue", function() {
     });
 
     it("should end the game after " + constants.GAME_ENDING_INACTIVE_ROUNDS + " inactive rounds", function() {
-      var waitMs = (turnMaxSec + 1)*slotNum*constants.GAME_ENDING_INACTIVE_ROUNDS*1000;
+      var waitMs = (turnMaxSec + 1)*slots.length*constants.GAME_ENDING_INACTIVE_ROUNDS*1000;
       var promise = new Promise();
       setTimeout(function() {
         promise.resolve();
@@ -1399,7 +1636,10 @@ describe("cleanup", function() {
 
     it('gets created with Alice', function() {
       return parseCall("Alice", "createGame", {
-        slotNum: 2
+        slots: [
+          { type: "creator", avatar: 0 },
+          { type: "open", avatar: 0 }
+        ]
       }).then(
         function(entity) {
           game.id = entityGameId(entity);
