@@ -48,12 +48,18 @@ var parseObjectConfig = {
         now.isAfter(momentStartTimeout);
 
       // Free slots and "joined" bool
-      if (context.players) {
+      if (context && context.players) {
         var slots = game.config.slots;
+        game.joined = false;
         context.players.forEach(function(player) {
           var gameId = player.get("game").id;
           var slotIndex = player.get("slot");
-          if (player.get("user").id == context.userId) game.joined = true;
+          if (
+            gameId == game.objectId &&
+            player.get("user").id == context.userId
+          ) {
+            game.joined = true;
+          }
           if (!slots) return;
           if (slotIndex < 0 || slotIndex >= slots.length) return;
           var slot = slots[slotIndex];
