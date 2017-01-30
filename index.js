@@ -5,7 +5,7 @@ var ParseServer = require('parse-server').ParseServer;
 var path = require('path');
 var util = require('util');
 var humanTime = require('human-time');
-var kue = require('kue')
+var kue = require('kue');
 var constants = require('./cloud/constants.js');
 
 var databaseUri = process.env.DATABASE_URI || process.env.MONGODB_URI;
@@ -110,7 +110,7 @@ if (process.env.TESTING === "true") {
     if (inMap) throw new Error("Message ID for " + messageName + " already in use by " + inMap);
     idMap[message.id] = messageName;
   }
-  delete idMap;
+  idMap = null;
 
 
   // Start the kue job queue UI
@@ -240,15 +240,15 @@ if (process.env.TESTING === "true") {
         
     var userQuery = new Parse.Query(Parse.Object.extend("User"));
     userQuery
-      .equalTo("username", "Bob")
+      .equalTo("username", "Bob");
 
     var sessionQuery = new Parse.Query(Parse.Session);
     sessionQuery
-      .matchesQuery("user", userQuery)
+      .matchesQuery("user", userQuery);
     
     var installationQuery = new Parse.Query(Parse.Installation);
     installationQuery
-      .matchesKeyInQuery("installationId", "installationId", sessionQuery)
+      .matchesKeyInQuery("installationId", "installationId", sessionQuery);
     
     Parse.Push.send({
       where: installationQuery,

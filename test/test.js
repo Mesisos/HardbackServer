@@ -1,5 +1,6 @@
 process.env.SERVER_ROOT = "http://127.0.0.1:5000";
 // process.env.SERVER_ROOT = "http://paperback.herokuapp.com";
+// process.env.REDIS_URL = "";
 
 var appId = "pbserver";
 var masterKey = "12345";
@@ -8,7 +9,7 @@ var constants = require('../cloud/constants.js');
 var GameState = constants.GameState;
 var AIDifficulty = constants.AIDifficulty;
 
-var timeoutMultiplier = 1;
+var timeoutMultiplier = 2;
 var testTimeouts = false;
 
 var should = require('chai').should();
@@ -68,7 +69,7 @@ function parseCall(auth, apiName, payload) {
   var headers = {
     "Content-Type": "application/json",
     "X-Parse-Application-Id": appId
-  }
+  };
 
   if (typeof(auth) == 'string') {
     var token = tokens[auth];
@@ -394,7 +395,7 @@ function checkDeletedJob(id) {
     function(err) {
       promise.resolve();
     }
-  )
+  );
   return promise;
 }
 
@@ -449,6 +450,7 @@ describe('game flow', function() {
 
     var gameByName = {};
     var game = {};
+    var gameBob = {};
 
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
@@ -503,7 +505,18 @@ describe('game flow', function() {
       );
     });
 
-
+    getGame(
+      "Alice",
+      game,
+      'should return one free slot for game',
+      function(game) {
+        should.exist(game);
+        game.should.have.property("freeSlots");
+        game.freeSlots.should.equal(1);
+        game.should.have.property("joined");
+        game.joined.should.equal(true);
+      }
+    );
 
     getGame("Alice", game, '', function(game) {
       game.state.should.equal(GameState.Lobby);
@@ -534,14 +547,33 @@ describe('game flow', function() {
 
     it('creates another game with Bob', function() {
       return parseCall("Bob", "createGame", {
+        "slots": [
+          { "type": "creator" },
+          { "type": "open" },
+          { "type": "open" },
+          { "type": "open" }
+        ],
         "fameCards": { "The Chinatown Connection": 3 },
         "turnMaxSec": 60
       }).then(
         function(entity) {
-          gameByName.Bob = entityGameId(entity);
+          gameByName.Bob = gameBob.id = entityGameId(entity);
         }
       );
     });
+
+    getGame(
+      "Bob",
+      gameBob,
+      'should return one free slot for game',
+      function(game) {
+        should.exist(game);
+        game.should.have.property("freeSlots");
+        game.freeSlots.should.equal(3);
+        game.should.have.property("joined");
+        game.joined.should.equal(true);
+      }
+    );
 
 
     var turnNumber = 0;
@@ -618,7 +650,7 @@ describe('game flow', function() {
           result.turns.forEach(function(turn) {
             turn.save.should.equal("turn " + turn.turn);
             turn.player.user.displayName.should.equal(
-              turn.turn%2 == 0 ? "Ally" : "Bobzor"
+              turn.turn%2 === 0 ? "Ally" : "Bobzor"
             );
           }, this);
         }
@@ -1375,7 +1407,7 @@ describe("kue", function() {
         function() {
           return parseCall("Alice", "listGames", {
             gameIds: [game.id]  
-          })
+          });
         }
       ).then(
         function(entity) {
@@ -1389,7 +1421,7 @@ describe("kue", function() {
           return Promise.resolve();
         }
       );
-    })
+    });
 
   });
 
@@ -1511,7 +1543,7 @@ describe("kue", function() {
             result.turnTimeoutJob.should.not.equal(game.turnTimeoutJob);
             game.turnTimeoutJob = result.turnTimeoutJob;
           }
-        )
+        );
       });
       makeTurn("Bob", game, "deny", turnNumber);
       makeTurn("Alice", game, "allow", turnNumber++);
@@ -1623,7 +1655,7 @@ describe("kue", function() {
           var result = entityResult(entity);
           result.state.should.equal(GameState.Ended);
         }
-      )
+      );
     });
 
   });

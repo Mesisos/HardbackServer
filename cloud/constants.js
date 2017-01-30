@@ -134,7 +134,7 @@ module.exports = Object.freeze({
    */
   t: {
 
-    AVAILABILITY: { id: 001 },
+    AVAILABILITY: { id:   1 },
 
     GAME_CREATED: { id: 100 },
     GAME_STARTED: { id: 101, m:

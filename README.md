@@ -530,6 +530,9 @@ Change user preferences, currently only supports changing the avatar.
       // Number of free open slots available. This excludes invite slots,
       // the creator slot and open slots already taken up by other players.
       "freeSlots": 1,
+
+      // Should always be `true`
+      "joined": true,
       ...
     },
     // Game two

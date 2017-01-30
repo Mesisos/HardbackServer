@@ -81,13 +81,13 @@ var parseObjectConfig = {
       }
       options.useMasterKey = true;
       return Obj.internalSave.apply(this, args);
-    }
+    };
     Obj.internalDestroy = Obj.prototype.destroy;
     Obj.prototype.destroy = function(options) {
       if (!options) options = {};
       options.useMasterKey = true;
       return Obj.internalDestroy.call(this, options);
-    }
+    };
   }
 );
 
@@ -98,7 +98,7 @@ Parse.Object.destroyAll = function(list, options) {
   if (!options) options = {};
   options.useMasterKey = true;
   return PObject.destroyAll(list, options);
-}
+};
 
 
 
@@ -132,29 +132,29 @@ Query.prototype.get = function(objectId, options) {
       }
       return Promise.reject(err);
     }
-  )
-}
+  );
+};
 
 PQuery.find = Query.prototype.find;
 Query.prototype.find = function(options) {
   if (!options) options = {};
   options.useMasterKey = true;
   return PQuery.find.call(this, options);
-}
+};
 
 PQuery.first = Query.prototype.first;
 Query.prototype.first = function(options) {
   if (!options) options = {};
   options.useMasterKey = true;
   return PQuery.first.call(this, options);
-}
+};
 
 PQuery.count = Query.prototype.count;
 Query.prototype.count = function(options) {
   if (!options) options = {};
   options.useMasterKey = true;
   return PQuery.count.call(this, options);
-}
+};
 
 
 
@@ -219,7 +219,7 @@ function removeJobWithError(id) {
         return;
       }
       promise.resolve();
-    })
+    });
   });
 
   return promise;
@@ -242,7 +242,7 @@ function removeJob(id) {
         return;
       }
       promise.resolve(true);
-    })
+    });
   });
   return promise;
 }
@@ -348,7 +348,7 @@ jobs.process('game lobby timeout', 10, function(job, done) {
             constants.t.GAME_LOBBY_TIMEOUT,
             { game: game }
           );
-          game.set("state", GameState.Ended)
+          game.set("state", GameState.Ended);
           return game.save();
         } else {
           return startGame(game);
@@ -419,7 +419,7 @@ function checkGameState(game, acceptable) {
           return GameState.getName(st);
         }).join(", "),
         stateName: GameState.getName(state)
-      }
+      };
     }
   }
   return result;
@@ -504,7 +504,7 @@ Parse.Cloud.define("checkNameFree", function(req, res) {
   
   var name = !req.params.displayName ? null : String(req.params.displayName);
   if (!name || name === "") {
-    respondError(res, constants.t.INVALID_PARAMETER)
+    respondError(res, constants.t.INVALID_PARAMETER);
     return;
   }
 
@@ -618,7 +618,31 @@ function addPaging(query, req, config) {
   query.skip(skip);
 }
 
+function addPlayerInfo(user, games, players) {
+  var gameSlots = {};
+  var gamesJoined = {};
 
+  games.forEach(function(game) {
+    gameSlots[game.id] = game.get("config").get("slots");
+  }, this);
+  players.forEach(function(player) {
+    var gameId = player.get("game").id;
+    var slotIndex = player.get("slot");
+    if (player.get("user").id == user.id) gamesJoined[gameId] = true;
+    var slots = gameSlots[gameId];
+    if (!slots) return;
+    if (slotIndex < 0 || slotIndex >= slots.length) return;
+    slots[slotIndex].filled = true;
+  }, this);
+
+  games.forEach(function(game) {
+    var slotsFree = gameSlots[game.id].filter(function(slot) {
+      return slot.type == SlotType.Open && !slot.filled;
+    });
+    game.set("freeSlots", slotsFree.length);
+    game.set("joined", !!gamesJoined[game.id]);
+  }, this);
+}
 
 Parse.Cloud.define("findGames", function(req, res) {
   var user = req.user;
@@ -645,36 +669,12 @@ Parse.Cloud.define("findGames", function(req, res) {
         var playerQuery = new Query(Player);
         if (games) playerQuery.containedIn("game", games);
         playerQuery
-          .equalTo("state", PlayerState.Active)
-          .include("user.displayName")
+          .equalTo("state", PlayerState.Active);
         return playerQuery.find();
       }
     ).then(
       function(allPlayers) {
-
-        var gameSlots = {};
-        var gamesJoined = {};
-
-        games.forEach(function(game) {
-          gameSlots[game.id] = game.get("config").get("slots");
-        }, this);
-        allPlayers.forEach(function(player) {
-          var gameId = player.get("game").id;
-          var slotIndex = player.get("slot");
-          if (player.get("user").id == user.id) gamesJoined[gameId] = true;
-          var slots = gameSlots[gameId];
-          if (!slots) return;
-          if (slotIndex < 0 || slotIndex >= slots.length) return;
-          slots[slotIndex].filled = true;
-        }, this);
-
-        games.forEach(function(game) {
-          var slotsFree = gameSlots[game.id].filter(function(slot) {
-            return slot.type == SlotType.Open && !slot.filled;
-          });
-          game.set("freeSlots", slotsFree.length);
-          game.set("joined", !!gamesJoined[game.id]);
-        }, this);
+        addPlayerInfo(user, games, allPlayers);
 
         respond(res, constants.t.GAME_LIST, {
           "games": games
@@ -704,8 +704,8 @@ function createConfigFromRequest(req) {
   var isRandom = false;
   var displayNames = [];
   var creatorSlots = 0;
-  for (var i in reqSlots) {
-    var reqSlot = reqSlots[i];
+  for (var slotIndex in reqSlots) {
+    var reqSlot = reqSlots[slotIndex];
     var slot = {};
     slot.type = SlotType.parse(reqSlot.type);
     if (slot.type === null) {
@@ -969,7 +969,7 @@ function sendPush(installationQuery, message, data) {
   return Parse.Push.send({
     where: installationQuery,
     data: obj
-  }, { useMasterKey: true })
+  }, { useMasterKey: true });
 }
 
 function notifyPlayers(players, message, data) {
@@ -979,7 +979,7 @@ function notifyPlayers(players, message, data) {
 
   var sessionQuery = new Query(Parse.Session);
   sessionQuery
-    .containedIn("user", users)
+    .containedIn("user", users);
 
   var installationQuery = new Query(Parse.Installation);
   installationQuery.matchesKeyInQuery("installationId", "installationId", sessionQuery);
@@ -1008,7 +1008,7 @@ function startGame(game) {
   playerQuery
     .equalTo("game", game)
     .equalTo("state", PlayerState.Active)
-    .equalTo("slot", 0)
+    .equalTo("slot", 0);
 
   return Promise.when(playerQuery.first(), removeJob(game.get("lobbyTimeoutJob")))
     .then(
@@ -1031,7 +1031,7 @@ function startGame(game) {
       }
     ).then(
       function() {
-        return Promise.resolve(game)
+        return Promise.resolve(game);
       }
     );
 }
@@ -1365,15 +1365,25 @@ Parse.Cloud.define("listGames", function(req, res) {
         .include("game.config")
         .include("game.creator")
         .include("game.currentPlayer")
-        .include("game.currentPlayer.user")
+        .include("game.currentPlayer.user");
 
       return playerQuery.find();
     }
   ).then(
     function(players) {
-      var games = players.map(function(player) {
+      games = players.map(function(player) {
         return player.get("game");
       });
+
+      var playerQuery = new Query(Player);
+      return playerQuery
+        .equalTo("state", PlayerState.Active)
+        .containedIn("game", games)
+        .find();
+    }
+  ).then(
+    function(allPlayers) {
+      addPlayerInfo(user, games, allPlayers);
       respond(res, constants.t.GAME_LIST, {
         "games": games
       });
@@ -1484,7 +1494,7 @@ Parse.Cloud.define("listFriends", function(req, res) {
   if (errorOnInvalidUser(user, res)) return;
 
   var contactQuery = new Query(Contact);
-  addPaging(contactQuery, req, constants.CONTACT_PAGING)
+  addPaging(contactQuery, req, constants.CONTACT_PAGING);
   contactQuery
     .equalTo("user", user)
     .include("contact")
@@ -1552,8 +1562,8 @@ function prepareTurn(game, player, previousTurn) {
       "Game " + game.id +
       ", " + "Player " + player.id +
       ", " + timeout + "s" +
-      ", " + (game.get("consecutiveTurnTimeouts") + 1) + " / " 
-           + constants.GAME_ENDING_INACTIVE_ROUNDS*config.get("slotNum"),
+      ", " + (game.get("consecutiveTurnTimeouts") + 1) + " / " +
+             constants.GAME_ENDING_INACTIVE_ROUNDS*config.get("slotNum"),
     playerId: player.id
   }).then(
     function(j) {
