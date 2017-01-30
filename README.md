@@ -474,6 +474,7 @@ Change user preferences, currently only supports changing the avatar.
 
 
 ## `findGames`
+Find games open to the public, i.e. with at least one open-type slot.
 ### Request
 ```
 {
@@ -498,6 +499,8 @@ Change user preferences, currently only supports changing the avatar.
       // Number of free open slots available. This excludes invite slots and
       // open slots already taken up by other players.
       "freeSlots": 1,
+
+      // See `listGames` for the rest of the properties.
       ...
     }
   ]
@@ -506,6 +509,7 @@ Change user preferences, currently only supports changing the avatar.
 
 
 ## `listGames`
+List all the games the logged-in user is currently participating in.
 ### Request
 ```
 {
@@ -527,12 +531,51 @@ Change user preferences, currently only supports changing the avatar.
     {
       "objectId": "idA",
 
+      // State the game is in, see "Game State" above.
+      "state": integer,
+
+      // Turn number starting from 0, incremented every turn.
+      "turn": integer,
+
+      // `true` if the game is able to be manually started via
+      // `startGame` by the creator.
+      "startable": true|false,
+
       // Number of free open slots available. This excludes invite slots,
       // the creator slot and open slots already taken up by other players.
       "freeSlots": 1,
 
-      // Should always be `true`
+      // Should always be `true` for `listGames`
       "joined": true,
+
+      "config": [
+        "slots": [{
+              // See "Slot Type" above.
+							"type": string,
+
+              // `true` if a player is occupying this slot.
+							"filled": true|false,
+
+              // If filled, a constrained Player object.
+							"player": {
+                // Will contain useful info in the future. 
+							}
+						},
+						{
+							"type": "open",
+							"filled": true,
+							"player": {
+								"slot": 1,
+								"className": "Player"
+							}
+						}
+        ]
+        "slotNum": integer,
+        "isRandom": true|false,
+        "turnMaxSec": integer,
+      ]
+
+
       ...
     },
     // Game two
@@ -587,6 +630,28 @@ Change user preferences, currently only supports changing the avatar.
 ```
 {
   "code": CONTACT_DELETED / CONTACT_NOT_FOUND
+}
+```
+
+
+## `startGame`
+Start a game manually if it's able to be started (`startable` game property
+in `listGames` should equal `true`). Only available to the creator of the game. 
+### Request
+```
+{
+  "gameId": "id"
+}
+```
+### Response
+```
+// Game join response object (see createGame)
+{
+  "code": GAME_STARTED / GAME_THIRD_PARTY | GAME_NOT_STARTABLE | GAME_START_ERROR | GAME_INSUFFICIENT_PLAYERS,
+
+  "game": {...},
+  "playerCount": integer,
+  "player": {...}
 }
 ```
 

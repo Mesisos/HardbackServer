@@ -34,10 +34,11 @@ var parseObjectConfig = {
     filter: [
       "**",
       "-lobbyTimeoutJob",
-      "-turnTimeoutJob"
+      "-turnTimeoutJob",
     ],
-    post: function(game) {
+    post: function(game, context) {
       var now = moment();
+      
       var momentCreated = moment(game.createdAt);
       game.createdAgo = momentCreated.from(now);
       game.updatedAgo = moment(game.updatedAt).from(now);
@@ -45,6 +46,30 @@ var parseObjectConfig = {
       game.startable =
         game.state == GameState.Lobby &&
         now.isAfter(momentStartTimeout);
+
+      // Free slots and "joined" bool
+      if (context.players) {
+        var slots = game.config.slots;
+        context.players.forEach(function(player) {
+          var gameId = player.get("game").id;
+          var slotIndex = player.get("slot");
+          if (player.get("user").id == context.userId) game.joined = true;
+          if (!slots) return;
+          if (slotIndex < 0 || slotIndex >= slots.length) return;
+          var slot = slots[slotIndex];
+          slot.filled = true;
+          slot.player = filterObject(player, context);
+          slot.player = getPropFilter(["slot"]).apply(slot.player);
+        }, this);
+
+        if (slots) {
+          var slotsFree = slots.filter(function(slot) {
+            return slot.type == SlotType.Open && !slot.filled;
+          });
+          game.freeSlots = slotsFree.length;
+        }
+      }
+
       return game;
     }
   },
@@ -442,7 +467,7 @@ function getPropFilter(filter) {
   );
 }
 
-function filterObject(obj, level) {
+function filterObject(obj, context, level) {
   if (level === undefined) level = 0;
   // var startTime; if (level == 0) startTime = Date.now();
   if (obj === null || obj === undefined) return obj;
@@ -450,7 +475,7 @@ function filterObject(obj, level) {
     case "array":
       var len = obj.length;
       for (var i = 0; i < len; i++) {
-        obj[i] = filterObject(obj[i], level + 1);
+        obj[i] = filterObject(obj[i], context, level + 1);
       }
       break;
 
@@ -474,15 +499,21 @@ function filterObject(obj, level) {
           }
           if (config.post && obj.__type != "Pointer") {
             // console.log("Postprocessing");
-            obj = config.post(obj);
+            obj = config.post(obj, context);
           }
         }
       }
+      
+      if (obj._context) {
+        context = obj._context;
+        delete obj._context;
+      }
+
       // console.log("Processing children");
       for (var prop in obj) {
         // var prefix = ""; while (prefix.length < level) prefix = prefix + " ";
         // console.log(prefix, prop + ": " + typeof(obj[prop]));
-        obj[prop] = filterObject(obj[prop], level + 1);
+        obj[prop] = filterObject(obj[prop], context, level + 1);
       }
       break;
   }
@@ -618,32 +649,6 @@ function addPaging(query, req, config) {
   query.skip(skip);
 }
 
-function addPlayerInfo(user, games, players) {
-  var gameSlots = {};
-  var gamesJoined = {};
-
-  games.forEach(function(game) {
-    gameSlots[game.id] = game.get("config").get("slots");
-  }, this);
-  players.forEach(function(player) {
-    var gameId = player.get("game").id;
-    var slotIndex = player.get("slot");
-    if (player.get("user").id == user.id) gamesJoined[gameId] = true;
-    var slots = gameSlots[gameId];
-    if (!slots) return;
-    if (slotIndex < 0 || slotIndex >= slots.length) return;
-    slots[slotIndex].filled = true;
-  }, this);
-
-  games.forEach(function(game) {
-    var slotsFree = gameSlots[game.id].filter(function(slot) {
-      return slot.type == SlotType.Open && !slot.filled;
-    });
-    game.set("freeSlots", slotsFree.length);
-    game.set("joined", !!gamesJoined[game.id]);
-  }, this);
-}
-
 Parse.Cloud.define("findGames", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
@@ -674,9 +679,11 @@ Parse.Cloud.define("findGames", function(req, res) {
       }
     ).then(
       function(allPlayers) {
-        addPlayerInfo(user, games, allPlayers);
-
         respond(res, constants.t.GAME_LIST, {
+          _context: {
+            players: allPlayers,
+            userId: user.id
+          },
           "games": games
         });
       },
@@ -1407,8 +1414,11 @@ Parse.Cloud.define("listGames", function(req, res) {
     }
   ).then(
     function(allPlayers) {
-      addPlayerInfo(user, games, allPlayers);
       respond(res, constants.t.GAME_LIST, {
+        _context: {
+          players: allPlayers,
+          userId: user.id
+        },
         "games": games
       });
     },
