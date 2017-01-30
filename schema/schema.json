@@ -19,7 +19,8 @@
 			"delete": {},
 			"addField": {}
 		}
-	}
+	},
+	"avatar": "number"
 }
 {
 	"_id": "Game",

@@ -28,10 +28,10 @@ var urlRoot = process.env.SERVER_ROOT + "/";
 var urlParse = urlRoot + "parse/";
 
 var logins = [
-  { user: "Alice", pass: "p" },
-  { user: "Bob", pass: "p" },
-  { user: "Carol", pass: "p" },
-  { user: "Dan", pass: "p" }
+  { name: "Alice", user: "alice@example.com", pass: "p" },
+  { name: "Bob", user: "bob@example.com", pass: "p" },
+  { name: "Carol", user: "carol@example.com", pass: "p" },
+  { name: "Dan", user: "dan@example.com", pass: "p" }
 ];
 var tokens = {};
 
@@ -173,7 +173,7 @@ function getUserSessions() {
     } else {
       tokens = JSON.parse(data);
       logins.forEach(function(login) {
-        if (!tokens[login.user]) pending.push(login);
+        if (!tokens[login.name]) pending.push(login);
       }, this);
     }
     
@@ -189,7 +189,10 @@ function getUserSessions() {
         function(results) {
           results.forEach(function(loginResult) {
             var user = loginResult.username;
-            tokens[user] = loginResult.sessionToken;
+            var name = logins.find(function(login) {
+              return login.user == user;
+            }).name;
+            tokens[name] = loginResult.sessionToken;
             console.log("Updated session token for " + user);
           }, this);
 
@@ -450,8 +453,8 @@ describe('game flow', function() {
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
         "slots": [
-          { "type": "creator", "avatar": 0 },
-          { "type": "open", "avatar": 0 }
+          { "type": "creator" },
+          { "type": "open" }
         ],
         "fameCards": { "The Chinatown Connection": 3 },
         "turnMaxSec": 60
@@ -683,10 +686,10 @@ describe('game flow', function() {
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
         "slots": [
-          { "type": "invite", "avatar": 0, "displayName": "Carry" },
-          { "type": "open", "avatar": 1 },
-          { "type": "invite", "avatar": 2, "displayName": "Bobzor" },
-          { "type": "creator", "avatar": 3 },
+          { "type": "invite", "displayName": "Carry" },
+          { "type": "open" },
+          { "type": "invite", "displayName": "Bobzor" },
+          { "type": "creator" },
         ],
         "turnMaxSec": 60
       }).then(
@@ -954,56 +957,56 @@ describe('game flow', function() {
       
       purgeRandom();
       createGameSlots(game, [
-        { type: "creator", avatar: 0 },
-        { type: "none", avatar: 1 },
-        { type: "none", avatar: 2 },
-        { type: "none", avatar: 3 }
+        { type: "creator" },
+        { type: "none" },
+        { type: "none" },
+        { type: "none" }
       ]);
       checkFreeSlots(game, 'game with no open slots', -1);
       
       purgeRandom();
       createGameSlots(game, [
-        { type: "creator", avatar: 0 },
-        { type: "open", avatar: 1 },
-        { type: "none", avatar: 2 },
-        { type: "none", avatar: 3 }
+        { type: "creator" },
+        { type: "open" },
+        { type: "none" },
+        { type: "none" }
       ]);
       checkFreeSlots(game, 'game with one open slot', 1);
 
       purgeRandom();
       createGameSlots(game, [
-        { type: "creator", avatar: 0 },
-        { type: "open", avatar: 0 },
-        { type: "open", avatar: 0 },
-        { type: "none", avatar: 0 }
+        { type: "creator" },
+        { type: "open" },
+        { type: "open" },
+        { type: "none" }
       ]);
       checkFreeSlots(game, 'game with two open slots', 2);
 
       purgeRandom();
       createGameSlots(game, [
-        { type: "creator", avatar: 0 },
-        { type: "open", avatar: 0 },
-        { type: "invite", avatar: 0, displayName: "Bobzor" },
-        { type: "none", avatar: 0 }
+        { type: "creator" },
+        { type: "open" },
+        { type: "invite", displayName: "Bobzor" },
+        { type: "none" }
       ]);
       checkFreeSlots(game, 'game with one open slot and one invite slot', 1);
       
       purgeRandom();
       createGameSlots(game, [
-        { type: "creator", avatar: 0 },
-        { type: "open", avatar: 0 },
-        { type: "open", avatar: 0 },
-        { type: "open", avatar: 0 }
+        { type: "creator" },
+        { type: "open" },
+        { type: "open" },
+        { type: "open" }
       ]);
       joinGame("Bob", game);
       checkFreeSlots(game, 'game with three open slots, one filled', 2);
       
       purgeRandom();
       createGameSlots(game, [
-        { type: "creator", avatar: 0 },
-        { type: "open", avatar: 0 },
-        { type: "invite", avatar: 0, displayName: "Bobzor" },
-        { type: "open", avatar: 0 }
+        { type: "creator" },
+        { type: "open" },
+        { type: "invite", displayName: "Bobzor" },
+        { type: "open" }
       ]);
       joinGame("Bob", game);
       joinGame("Carol", game);
@@ -1011,10 +1014,10 @@ describe('game flow', function() {
       
       purgeRandom();
       createGameSlots(game, [
-        { type: "creator", avatar: 0 },
-        { type: "open", avatar: 0 },
-        { type: "invite", avatar: 0, displayName: "Bobzor" },
-        { type: "invite", avatar: 0, displayName: "Carry" },
+        { type: "creator" },
+        { type: "open" },
+        { type: "invite", displayName: "Bobzor" },
+        { type: "invite", displayName: "Carry" },
       ]);
       joinGame("Bob", game);
       joinGame("Carol", game);
@@ -1022,10 +1025,10 @@ describe('game flow', function() {
       
       purgeRandom();
       createGameSlots(game, [
-        { type: "creator", avatar: 0 },
-        { type: "invite", avatar: 0, displayName: "Bobzor" },
-        { type: "invite", avatar: 0, displayName: "Bobzor" },
-        { type: "open", avatar: 0 }
+        { type: "creator" },
+        { type: "invite", displayName: "Bobzor" },
+        { type: "invite", displayName: "Bobzor" },
+        { type: "open" }
       ], "duplicate invites should error", resultShouldError(constants.t.GAME_INVALID_CONFIG));
 
     });
@@ -1042,9 +1045,9 @@ describe('game flow', function() {
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
         "slots": [
-          { "type": "creator", "avatar": 0 },
-          { "type": "open", "avatar": 0 },
-          { "type": "open", "avatar": 0 }
+          { "type": "creator" },
+          { "type": "open" },
+          { "type": "open" }
         ],
         "fameCards": { "The Chinatown Connection": 3 },
         "turnMaxSec": 60
@@ -1059,9 +1062,9 @@ describe('game flow', function() {
     it('creates a game and gets the game id with Bob', function() {
       return parseCall("Bob", "createGame", {
         "slots": [
-          { "type": "creator", "avatar": 0 },
-          { "type": "open", "avatar": 0 },
-          { "type": "open", "avatar": 0 }
+          { "type": "creator" },
+          { "type": "open" },
+          { "type": "open" }
         ],
         "fameCards": { "The Chinatown Connection": 3 },
         "turnMaxSec": 60
@@ -1125,9 +1128,9 @@ describe('game flow', function() {
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
         "slots": [
-          { "type": "creator", "avatar": 0 },
-          { "type": "open", "avatar": 0 },
-          { "type": "open", "avatar": 0 }
+          { "type": "creator" },
+          { "type": "open" },
+          { "type": "open" }
         ],
         "fameCards": { "The Chinatown Connection": 3 },
         "turnMaxSec": 7
@@ -1345,8 +1348,8 @@ describe("kue", function() {
     if (testTimeouts) it('creates a game and waits for timeout with Alice', function() {
       return parseCall("Alice", "createGame", {
         "slots": [
-          { "type": "creator", "avatar": 0 },
-          { "type": "open", "avatar": 0 }
+          { "type": "creator" },
+          { "type": "open" }
         ],
         "fameCards": {},
         "turnMaxSec": 60
@@ -1398,8 +1401,8 @@ describe("kue", function() {
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
         "slots": [
-          { "type": "creator", "avatar": 0 },
-          { "type": "open", "avatar": 0 }
+          { "type": "creator" },
+          { "type": "open" }
         ],
         "fameCards": {},
         "turnMaxSec": 60
@@ -1432,8 +1435,8 @@ describe("kue", function() {
     it('creating a game with Alice', function() {
       return parseCall("Alice", "createGame", {
         "slots": [
-          { "type": "creator", "avatar": 0 },
-          { "type": "open", "avatar": 0 }
+          { "type": "creator" },
+          { "type": "open" }
         ],
         "turnMaxSec": turnMaxSec
       }).then(
@@ -1539,8 +1542,8 @@ describe("kue", function() {
   if (testTimeouts) describe("game ending turn timeout job", function() {
 
     var slots = [
-      { "type": "creator", "avatar": 0 },
-      { "type": "open", "avatar": 0 }
+      { "type": "creator" },
+      { "type": "open" }
     ];
     var turnMaxSec = 1*timeoutMultiplier;
     var game = {};
@@ -1548,8 +1551,8 @@ describe("kue", function() {
     it('creating a game with Alice', function() {
       return parseCall("Alice", "createGame", {
         "slots": [
-          { "type": "creator", "avatar": 0 },
-          { "type": "open", "avatar": 0 }
+          { "type": "creator" },
+          { "type": "open" }
         ],
         "turnMaxSec": turnMaxSec
       }).then(
@@ -1637,8 +1640,8 @@ describe("cleanup", function() {
     it('gets created with Alice', function() {
       return parseCall("Alice", "createGame", {
         slots: [
-          { type: "creator", avatar: 0 },
-          { type: "open", avatar: 0 }
+          { type: "creator" },
+          { type: "open" }
         ]
       }).then(
         function(entity) {

@@ -156,7 +156,12 @@ if (process.env.TESTING === "true") {
 
     var userQuery = new Parse.Query(Parse.Object.extend("User"));
     userQuery
-      .containedIn("username", ["Alice", "Bob", "Carol", "Dan"])
+      .containedIn("username", [
+        "alice@example.com",
+        "bob@example.com",
+        "carol@example.com",
+        "dan@example.com"
+      ])
       .find({ useMasterKey: true })
       .then(
         function(users) {

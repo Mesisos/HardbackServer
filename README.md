@@ -316,6 +316,23 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 ```
 
 
+## `userSet`
+Change user preferences, currently only supports changing the avatar.
+### Request
+```
+{
+  "avatar": integer
+}
+```
+### Response
+```
+{
+  "code": USER_SAVED / INVALID_PARAMETER
+}
+```
+
+
+
 
 
 ## `createGame`

@@ -22,6 +22,45 @@ var Player = Parse.Object.extend("Player");
 var Contact = Parse.Object.extend("Contact");
 var Invite = Parse.Object.extend("Invite");
 
+var parseObjectConfig = {
+  "_User": {
+    filter: [
+      "displayName",
+      "objectId",
+      "avatar"
+    ]
+  },
+  "Game": {
+    filter: [
+      "**",
+      "-lobbyTimeoutJob",
+      "-turnTimeoutJob"
+    ],
+    post: function(game) {
+      var now = moment();
+      var momentCreated = moment(game.createdAt);
+      game.createdAgo = momentCreated.from(now);
+      game.updatedAgo = moment(game.updatedAt).from(now);
+      var momentStartTimeout = momentCreated.add(constants.START_GAME_MANUAL_TIMEOUT, "seconds");
+      game.startable =
+        game.state == GameState.Lobby &&
+        now.isAfter(momentStartTimeout);
+      return game;
+    }
+  },
+  "Invite": {
+    filter: [
+      "**",
+      "-inviter"
+    ]
+  },
+  "Player": {
+    filter: [
+      "**",
+      "-game"
+    ]
+  }
+};
 
 // Hook into Object subclasses to provide master access for common methods
 [Game, Config, Turn, Player, Contact, Invite].forEach(
@@ -397,47 +436,6 @@ function errorOnInvalidGame(game, res, acceptable) {
 
 
 
-var parseObjectConfig = {
-  "_User": {
-    filter: [
-      "displayName",
-      "objectId"
-    ]
-  },
-  "Game": {
-    filter: [
-      "**",
-      "-lobbyTimeoutJob",
-      "-turnTimeoutJob"
-    ],
-    post: function(game) {
-      var now = moment();
-      var momentCreated = moment(game.createdAt);
-      game.createdAgo = momentCreated.from(now);
-      game.updatedAgo = moment(game.updatedAt).from(now);
-      var momentStartTimeout = momentCreated.add(constants.START_GAME_MANUAL_TIMEOUT, "seconds");
-      game.startable =
-        game.state == GameState.Lobby &&
-        now.isAfter(momentStartTimeout);
-      return game;
-    }
-  },
-  "Invite": {
-    filter: [
-      "**",
-      "-inviter"
-    ]
-  },
-  "Player": {
-    filter: [
-      "**",
-      "-game"
-    ]
-  }
-}
-
-
-
 function getPropFilter(filter) {
   return new JsonPropertyFilter.JsonPropertyFilter(
     filter.concat(["__type", "className"])
@@ -715,14 +713,7 @@ function createConfigFromRequest(req) {
         reason: "Missing or invalid slot type."
       }));
     }
-
-    slot.avatar = typeof(reqSlot.avatar) == "number" ? Number(reqSlot.avatar) : NaN;
-    if (isNaN(slot.avatar)) {
-      return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG, {
-        reason: "Missing or invalid slot avatar index."
-      }));
-    }
-
+    
     switch (slot.type) {
       case SlotType.Creator:
         creatorSlots++;
@@ -1750,6 +1741,31 @@ function findNextPlayer(game) {
 
 
 
+Parse.Cloud.define("userSet", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+
+  var avatar = req.params.avatar;
+  if (avatar !== undefined) {
+    if (typeof(avatar) == "number") {
+      user.set("avatar", avatar);
+    } else {
+      respondError(res, constants.t.INVALID_PARAMETER);
+      return;
+    }
+  }
+
+  user
+    .save(null, { useMasterKey: true })
+    .then(
+      function(user) {
+        respond(res, constants.t.USER_SAVED, {});
+      },
+      respondError(res)
+    );
+});
+
+
 Parse.Cloud.beforeSave(Parse.User, function(req, res) {
     var user = req.object;
 
@@ -1780,18 +1796,28 @@ Parse.Cloud.beforeSave(Parse.User, function(req, res) {
       res.error(constants.t.INVALID_PARAMETER);
       return;
     }
+    
+    var avatar = user.get("avatar");
+    if (typeof(avatar) == 'undefined') avatar = constants.AVATAR_DEFAULT;
+    if (typeof(avatar) != "number" || isNaN(avatar)) {
+      res.error(constants.t.INVALID_PARAMETER);
+      return;
+    }
 
     var query = new Query(Parse.User);
-    query.equalTo("displayName", displayName);
-    query.first().then(
-      function(result) {
-        if (result) {
-          res.error(constants.t.DISPLAY_NAME_TAKEN);
-        } else {
-          res.success();
-        }
-      },
-      respondError(res)
+    query
+      .notEqualTo("objectId", user.id)
+      .equalTo("displayName", displayName)
+      .first()
+      .then(
+        function(result) {
+          if (result) {
+            res.error(constants.t.DISPLAY_NAME_TAKEN);
+          } else {
+            res.success();
+          }
+        },
+        respondError(res)
     );
 });
 

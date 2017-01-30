@@ -11,6 +11,7 @@ module.exports = Object.freeze({
     "Lady of the West"
   ],
 
+  AVATAR_DEFAULT: 0,
 
   GAME_DEFAULT_CONFIG: {
     slots: [
@@ -147,6 +148,8 @@ module.exports = Object.freeze({
 
     GAME_INVITE: { id: 105 },
     GAME_LIST: { id: 106 },
+
+    USER_SAVED: { id: 107 },
 
     GAME_LOBBY_TIMEOUT: { id: 120, m:
       "Game {{game.objectId}} timed out, nobody joined!"
