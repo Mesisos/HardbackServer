@@ -605,14 +605,17 @@ List all the games the logged-in user is currently participating in.
   "code": CONTACT_LIST,
 
   "contacts": [
-    // A lot of other info here will be stripped later
     {
       "displayName": "Ally",
       "objectId": "idA",
+
+      // You can set this number on user signup or with `userSet`
+      "avatar": integer
     },
     {
       "displayName": "Bobzor",
-      "objectId": "idB"
+      "objectId": "idB",
+      "avatar": integer
     }
   ]
 }
