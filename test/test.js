@@ -1261,6 +1261,40 @@ describe('game flow', function() {
       );
     });
 
+    describe("before starting", function() {
+        
+      var game = {};
+
+      it('creates a game and gets the game id with Alice', function() {
+        return parseCall("Alice", "createGame", {
+          "slots": [
+            { "type": "creator" },
+            { "type": "open" },
+            { "type": "open" }
+          ],
+          "turnMaxSec": 10
+        }).then(
+          function(entity) {
+            game.id = entityGameId(entity);
+          }
+        );
+      });
+      joinGame("Bob", game);
+      leaveGame("Alice", game, "with Alice");
+        
+      it("should end the game", function() {
+        return parseCall({ useMasterKey: true }, "debugGame", {
+          gameId: game.id
+        }).then(
+          function(entity) {
+            var result = entityResult(entity);
+            result.state.should.equal(GameState.Ended);
+          }
+        );
+      });
+
+    });
+
   });
 
 });

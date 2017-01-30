@@ -158,6 +158,10 @@ module.exports = Object.freeze({
       "Game {{game.objectId}} ran out!"
     },
 
+    GAME_ABORTED: { id: 122, m:
+      "Game {{game.objectId}} ended by creator."
+    },
+
     PLAYER_TURN: { id: 200, m:
       "It's your turn in game {{game.objectId}}!"
     },

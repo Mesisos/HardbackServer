@@ -1223,6 +1223,7 @@ Parse.Cloud.define("leaveGame", function(req, res) {
   var leaver;
   var game;
   var currentLeft;
+  var aborted;
   var gameQuery = new Query(Game);
   gameQuery
     .get(gameId)
@@ -1230,6 +1231,12 @@ Parse.Cloud.define("leaveGame", function(req, res) {
       function(g) {
         game = g;
         if (!game) return Promise.reject(new CodedError(constants.t.GAME_NOT_FOUND));
+        
+        if (errorOnInvalidGame(game, res, [
+          GameState.Lobby,
+          GameState.Running
+        ])) return;
+
         var query = new Query(Player);
         return query
           .equalTo("game", game)
@@ -1241,21 +1248,38 @@ Parse.Cloud.define("leaveGame", function(req, res) {
     ).then(
       function(player) {
         if (!player) return Promise.reject(new CodedError(constants.t.PLAYER_NOT_IN_GAME));
-        if (errorOnInvalidGame(game, res, [GameState.Running])) return;
         leaver = player;
         player.set("state", PlayerState.Inactive);
         
-        currentLeft = game.get("currentPlayer").id == player.id;
+        var currentPlayer = game.get("currentPlayer");
+        currentLeft = currentPlayer && currentPlayer.id == player.id;
+
+        aborted =
+          game.get("state") == GameState.Lobby &&
+          game.get("creator").id == user.id;
+        
+        if (aborted) {
+          game.set("state", GameState.Ended);
+          notifyGame(game, constants.t.GAME_ABORTED, {
+            game: game
+          });
+        }
 
         return Promise.when(
           player.save(),
-          currentLeft ?
+
+          currentLeft && !aborted ?
             gameNextPlayer(game) :
-            Promise.resolve(player)
+            Promise.resolve(player),
+
+          aborted ?
+            game.save() :
+            Promise.resolve(game)
         );
       }
     ).then(
-      function(player, nextPlayer) {
+      function(player, nextPlayer, g) {
+        game = g;
         respond(res, constants.t.GAME_LEFT, {
           player: leaver
         });
