@@ -299,6 +299,12 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 "ai"
 ```
 
+### Turn Type
+```
+0 -> Player
+1 -> Timeout
+```
+
 ## `checkNameFree`
 ### Request
 ```
@@ -711,9 +717,20 @@ indexes are first, then it wraps around.
     {
       // Player object (with a User)
       "player": {...},
+
+      // Type, e.g. player made turn or 
+      // turn made by timeout.
+      // See "Turn Type" above.
+      "type": integer,
+
       // Turn index
       "turn": integer,
-      // Save contents
+
+      // Save contents provided in `gameTurn`.
+      // In case of a timeout, this should equal
+      // the last valid turn save made or `null`
+      // if there were no valid turns yet i.e.
+      // game starts with a turn timeout.
       "save": string
     },
     {

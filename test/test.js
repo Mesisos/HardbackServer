@@ -7,6 +7,7 @@ var masterKey = "12345";
 
 var constants = require('../cloud/constants.js');
 var GameState = constants.GameState;
+var TurnType = constants.TurnType;
 var AIDifficulty = constants.AIDifficulty;
 
 var timeoutMultiplier = 2;
@@ -1616,6 +1617,7 @@ describe("kue", function() {
     makeTurn("Alice", game, "deny", turnNumber);
     
     if (testTimeouts) {
+      turnNumber++;
       it("should advance to the next player after timeout", function() {
         var promise = new Promise();
         setTimeout(function() {
@@ -1640,6 +1642,35 @@ describe("kue", function() {
       });
       makeTurn("Bob", game, "deny", turnNumber);
       makeTurn("Alice", game, "allow", turnNumber++);
+
+      if (testTimeouts) it('works together with normal turns', function() {
+        return parseCall("Alice", "listTurns", {
+          gameId: game.id,
+          limit: 4
+        }).then(
+          function(entity) {
+
+
+            var result = entityResult(entity, constants.t.TURN_LIST);
+            var turns = result.turns;
+            turns.should.have.length(3);
+
+            turns.forEach(function(turn, index) {
+              // Invert index (most recent is highest)
+              index = 2 - index;
+              turn.should.have.property("type");
+              if (index == 1) {
+                // Timeout turn
+                turn.type.should.equal(TurnType.Timeout);
+                turn.save.should.equal("turn 0");
+              } else {
+                turn.type.should.equal(TurnType.Player);
+                turn.save.should.equal("turn " + index);
+              }
+            }, this);
+          }
+        );
+      });
     }
 
     makeTurn("Bob", game, "finish", turnNumber++);

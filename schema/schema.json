@@ -123,7 +123,8 @@
 			"addField": {}
 		}
 	},
-	"save": "string"
+	"save": "string",
+	"lastValid": "*Turn"
 }
 {
 	"_id": "Contact",

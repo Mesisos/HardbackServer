@@ -110,6 +110,11 @@ module.exports = Object.freeze({
     }
   },
 
+  TurnType: {
+    Player: 0,
+    Timeout: 1
+  },
+
   AIDifficulty: {
     None:   0,
     Easy:   1,

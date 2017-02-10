@@ -10,6 +10,7 @@ var Mustache = require("mustache");
 GameState = constants.GameState;
 PlayerState = constants.PlayerState;
 SlotType = constants.SlotType;
+TurnType = constants.TurnType;
 AIDifficulty = constants.AIDifficulty;
 
 var Promise = Parse.Promise;
@@ -29,6 +30,20 @@ var parseObjectConfig = {
       "objectId",
       "avatar"
     ]
+  },
+  "Turn": {
+    filter: [
+      "**",
+      "-lastValid"
+    ],
+    pre: function(turn, context) {
+      turn.type = TurnType.Player;
+      if (turn.save === null && turn.lastValid) {
+        turn.save = turn.lastValid.save;
+        turn.type = TurnType.Timeout;
+      }
+      return turn;
+    }
   },
   "Game": {
     filter: [
@@ -301,18 +316,42 @@ jobs.process('game turn timeout', 10, function(job, done) {
     .then(
       function(player) {
         job.log("Loaded");
-        var game = player.get("game");
-        var currentPlayer = game.get("currentPlayer");
+        game = player.get("game");
+        currentPlayer = game.get("currentPlayer");
         if (currentPlayer.id != player.id) {
           job.log("Timeout player " + player.id + " does not match current player " + currentPlayer.id);
           return Promise.reject(new Error("Unable to time out turn due to different current player"));
         }
+
+        return new Query(Turn)
+          .equalTo("game", game)
+          .notEqualTo("save", null)
+          .addDescending("createdAt")
+          .first();
+      }
+    ).then(
+      function(lastTurn) {
 
         var consecutiveTurnTimeouts = game.get("consecutiveTurnTimeouts");
         var slotNum = game.get("config").get("slotNum");
         var timeoutRounds = (consecutiveTurnTimeouts + 1) / slotNum;
         
         game.increment("consecutiveTurnTimeouts");
+
+        var lastValidTurn =
+          !lastTurn ?
+            null
+          :
+            lastTurn.get("save") !== null ?
+            lastTurn : lastTurn.get("lastValid")
+        ;
+
+        var turn = new Turn();
+        turn.set("game", game);
+        turn.set("save", null);
+        turn.set("player", currentPlayer);
+        turn.set("turn", game.get("turn"));
+        turn.set("lastValid", lastValidTurn);
 
         if (timeoutRounds >= constants.GAME_ENDING_INACTIVE_ROUNDS) {
           job.log("Game timed out");
@@ -321,15 +360,19 @@ jobs.process('game turn timeout', 10, function(job, done) {
           game.set("state", GameState.Ended);
           return Promise.when(
             null,
+            turn.save(),
             game.save(),
             notifyGame(game, constants.t.GAME_INACTIVE_TIMEOUT, { game: game })
           );
         }
 
-        return gameNextPlayer(game);
+        return Promise.when(
+          turn.save(),
+          gameNextPlayer(game, turn)
+        );
       }
     ).then(
-      function(nextPlayer, endedGame, endedPush) {
+      function(nextPlayer, turn, endedGame, endedPush) {
         if (endedGame) {
           return Promise.resolve();
         }
@@ -360,9 +403,9 @@ jobs.process('game lobby timeout', 10, function(job, done) {
   job.log("Game: " + gameId);
   
   var game;
-  var playerCount;
 
   new Query(Game)
+    .include("currentPlayer.user")
     .get(gameId)
     .then(
       function(g) {
@@ -372,18 +415,19 @@ jobs.process('game lobby timeout', 10, function(job, done) {
           return Promise.reject(new Error("Not a lobby, skipping."));
         }
 
-        return getPlayerCount(game);
+        return new Query(Player)
+          .equalTo("game", game)
+          .include("user")
+          .find();
       }
     ).then(
-      function(c) {
-        playerCount = c;
-
-        job.log("Player count: " + playerCount);
-
-        if (playerCount < 2) {
+      function(players) {
+        job.log("Player count: " + players.length);
+        job.log("Players:\n" + players);
+        if (players.length < 2) {
           job.log("Timed out");
           notifyPlayers(
-            [ game.get("currentPlayer") ],
+            players,
             constants.t.GAME_LOBBY_TIMEOUT,
             { game: game }
           );
@@ -486,50 +530,60 @@ function filterObject(obj, context, level) {
   // var startTime; if (level == 0) startTime = Date.now();
   if (obj === null || obj === undefined) return obj;
   switch (typeof(obj)) {
-    case "array":
-      var len = obj.length;
-      for (var i = 0; i < len; i++) {
-        obj[i] = filterObject(obj[i], context, level + 1);
-      }
-      break;
-
     case "object":
-      if (typeof(obj.toJSON) === "function") {
-        // console.log("Converting to JSON");
-        var className = obj.className;
-        obj = obj.toJSON();
-        obj.className = className;
-      }
-      if (obj.className) {
-        var config = parseObjectConfig[obj.className];
-        if (config) {
-          if (config.filter) {
-            // console.log("Filtering");
-            var propFilter = config.filterInstance;
-            if (!propFilter) {
-              propFilter = config.filterInstance = getPropFilter(config.filter);
+      if (!Array.isArray(obj)) {
+
+        if (typeof(obj.toJSON) === "function") {
+          // console.log("Converting to JSON");
+          var className = obj.className;
+          obj = obj.toJSON();
+          obj.className = className;
+        }
+
+        if (obj.className) {
+          var config = parseObjectConfig[obj.className];
+          if (config) {
+            if (config.pre && obj.__type != "Pointer") {
+              // console.log("Preprocessing");
+              obj = config.pre(obj, context);
             }
-            obj = propFilter.apply(obj);
-          }
-          if (config.post && obj.__type != "Pointer") {
-            // console.log("Postprocessing");
-            obj = config.post(obj, context);
+            if (config.filter) {
+              // console.log("Filtering");
+              var propFilter = config.filterInstance;
+              if (!propFilter) {
+                propFilter = config.filterInstance = getPropFilter(config.filter);
+              }
+              obj = propFilter.apply(obj);
+            }
+            if (config.post && obj.__type != "Pointer") {
+              // console.log("Postprocessing");
+              obj = config.post(obj, context);
+            }
           }
         }
+
+        if (obj._context) {
+          context = obj._context;
+          delete obj._context;
+        }
+
       }
-      
-      if (obj._context) {
-        context = obj._context;
-        delete obj._context;
+
+      if (context) {
+        context._parent = obj;
       }
 
       // console.log("Processing children");
-      for (var prop in obj) {
+      for (var key in obj) {
         // var prefix = ""; while (prefix.length < level) prefix = prefix + " ";
-        // console.log(prefix, prop + ": " + typeof(obj[prop]));
-        obj[prop] = filterObject(obj[prop], context, level + 1);
+        // console.log(prefix, key + ": " + typeof(obj[key]));
+
+        if (context) context._key = key;
+        obj[key] = filterObject(obj[key], context, level + 1);
       }
+      
       break;
+
   }
   // if (level == 0) console.log("Filtering:", Date.now() - startTime);
   return obj;
@@ -661,6 +715,8 @@ function addPaging(query, req, config) {
 
   query.limit(limit);
   query.skip(skip);
+
+  return { limit: limit, skip: skip };
 }
 
 Parse.Cloud.define("findGames", function(req, res) {
@@ -1527,6 +1583,7 @@ Parse.Cloud.define("listTurns", function(req, res) {
         return query
           .equalTo("game", game)
           .include("player.user")
+          .include("lastValid")
           .find();
       }
     ).then(
@@ -1723,6 +1780,7 @@ Parse.Cloud.define("gameTurn", function(req, res) {
         turn.set("save", save);
         turn.set("player", currentPlayer);
         turn.set("turn", game.get("turn"));
+        turn.set("lastValid", null);
 
         game.set("consecutiveTurnTimeouts", 0);
 
