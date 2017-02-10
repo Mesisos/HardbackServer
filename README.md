@@ -551,24 +551,35 @@ List all the games the logged-in user is currently participating in.
       "config": [
         "slots": [{
               // See "Slot Type" above.
-							"type": string,
+              "type": string,
 
               // `true` if a player is occupying this slot.
-							"filled": true|false,
+              // Always `true` for AI-type slots.
+              "filled": true|false,
 
-              // If filled, a constrained Player object.
-							"player": {
-                // Will contain useful info in the future. 
-							}
-						},
-						{
-							"type": "open",
-							"filled": true,
-							"player": {
-								"slot": 1,
-								"className": "Player"
-							}
-						}
+              // If filled and not AI, a constrained Player object.
+             "player": {
+               // User object
+                "user": {
+                  "displayName": string,
+                  "avatar": integer,
+                  "objectId": string
+                }
+              },
+
+              // AI difficulty as specified in the create game configuration,
+              // only present for AI-type slots.
+              "difficulty": integer
+
+            },
+            {
+              "type": "open",
+              "filled": true,
+              "player": {
+                "slot": 1,
+                "className": "Player"
+              }
+            }
         ]
         "slotNum": integer,
         "isRandom": true|false,

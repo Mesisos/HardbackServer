@@ -51,6 +51,11 @@ var parseObjectConfig = {
       if (context && context.players) {
         var slots = game.config.slots;
         game.joined = false;
+        if (slots) {
+          slots.forEach(function(slot) {
+            slot.filled = slot.type == SlotType.AI;
+          }, this);
+        }
         context.players.forEach(function(player) {
           var gameId = player.get("game").id;
           var slotIndex = player.get("slot");
@@ -65,7 +70,10 @@ var parseObjectConfig = {
           var slot = slots[slotIndex];
           slot.filled = true;
           slot.player = filterObject(player, context);
-          slot.player = getPropFilter(["slot"]).apply(slot.player);
+          slot.player = getPropFilter([
+            "slot",
+            "user"
+          ]).apply(slot.player);
         }, this);
 
         if (slots) {
@@ -680,7 +688,8 @@ Parse.Cloud.define("findGames", function(req, res) {
         var playerQuery = new Query(Player);
         if (games) playerQuery.containedIn("game", games);
         playerQuery
-          .equalTo("state", PlayerState.Active);
+          .equalTo("state", PlayerState.Active)
+          .include("user");
         return playerQuery.find();
       }
     ).then(
@@ -1416,6 +1425,7 @@ Parse.Cloud.define("listGames", function(req, res) {
       return playerQuery
         .equalTo("state", PlayerState.Active)
         .containedIn("game", games)
+        .include("user")
         .find();
     }
   ).then(

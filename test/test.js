@@ -505,22 +505,18 @@ describe('game flow', function() {
       );
     });
 
-    getGame(
-      "Alice",
-      game,
-      'should return one free slot for game',
-      function(game) {
-        should.exist(game);
-        game.should.have.property("freeSlots");
-        game.freeSlots.should.equal(1);
-        game.should.have.property("joined");
-        game.joined.should.equal(true);
-      }
-    );
-
     getGame("Alice", game, '', function(game) {
+      should.exist(game);
       game.state.should.equal(GameState.Lobby);
       game.turn.should.equal(0);
+
+      game.should.have.property("freeSlots");
+      game.freeSlots.should.equal(1);
+      game.should.have.property("joined");
+      game.joined.should.equal(true);
+    });
+
+    getGame("Alice", game, '', function(game) {
     });
 
     makeTurn("Alice", game, "invalid");
@@ -1062,6 +1058,69 @@ describe('game flow', function() {
         { type: "invite", displayName: "Bobzor" },
         { type: "open" }
       ], "duplicate invites should error", resultShouldError(constants.t.GAME_INVALID_CONFIG));
+
+      purgeRandom();
+      createGameSlots(game, [
+        { type: "creator" },
+        { type: "open" },
+        { type: "ai", difficulty: 2 },
+        { type: "open" }
+      ]);
+      joinGame("Bob", game);
+
+      function checkSlots(game) {
+        game.should.have.property("config");
+        var config = game.config;
+        config.should.have.property("slots");
+        var slots = config.slots;
+        slots.should.have.length(4);
+
+        slots[0].type.should.equal("creator");
+        slots[0].filled.should.equal(true);
+        slots[0].should.have.property("player");
+        slots[0].player.should.have.property("user");
+        slots[0].player.user.displayName.should.equal("Ally");
+
+        slots[1].type.should.equal("open");
+        slots[1].filled.should.equal(true);
+        slots[1].should.have.property("player");
+        slots[1].player.should.have.property("user");
+        slots[1].player.user.displayName.should.equal("Bobzor");
+
+        slots[2].type.should.equal("ai");
+        slots[2].filled.should.equal(true);
+        slots[2].should.not.have.property("player");
+        slots[2].difficulty.should.equal(2);
+
+        slots[3].type.should.equal("open");
+        slots[3].filled.should.equal(false);
+        slots[3].should.not.have.property("player");
+      }
+
+      checkFreeSlots(game, 'game with one ai slot, two open slots, one filled', 1);
+      it("should have the right slot config returned", function() {
+        return parseCall("Alice", "findGames", {}).then(
+          function(entity) {
+            var result = entityResult(entity, constants.t.GAME_LIST);
+            result.should.have.property("games");
+            result.games.length.should.equal(1);
+            var game = result.games[0];
+            checkSlots(game);
+          }
+        );
+      });
+      it("should have the right slot config returned with listGames too", function() {
+        return parseCall("Alice", "listGames", { "limit": 1 }).then(
+          function(entity) {
+            var result = entityResult(entity, constants.t.GAME_LIST);
+            result.should.have.property("games");
+            result.games.length.should.equal(1);
+            var game = result.games[0];
+            checkSlots(game);
+          }
+        );
+      });
+
 
     });
 
