@@ -457,7 +457,9 @@ describe('game flow', function() {
       return parseCall("Alice", "createGame", {
         "slots": [
           { "type": "creator" },
-          { "type": "open" }
+          { "type": "open" },
+          { "type": "none" },
+          { "type": "none" }
         ],
         "fameCards": { "The Chinatown Connection": 3 },
         "turnMaxSec": 60
@@ -468,7 +470,7 @@ describe('game flow', function() {
           result.game.state.should.equal(GameState.Lobby);
 
           var config = result.game.config;
-          config.slotNum.should.equal(2);
+          config.playerNum.should.equal(2);
           config.isRandom.should.equal(true);
           config.fameCards.should.have.property("The Chinatown Connection");
           config.fameCards["The Chinatown Connection"].should.equal(3);
@@ -515,9 +517,19 @@ describe('game flow', function() {
       game.freeSlots.should.equal(1);
       game.should.have.property("joined");
       game.joined.should.equal(true);
-    });
 
-    getGame("Alice", game, '', function(game) {
+      game.should.have.property("config");
+      game.config.should.have.property("slots");
+      var slots = game.config.slots;
+      slots.should.have.length(4);
+      slots[0].type.should.equal("creator");
+      slots[0].filled.should.equal(true);
+      slots[1].type.should.equal("open");
+      slots[1].filled.should.equal(false);
+      slots[2].type.should.equal("none");
+      slots[2].filled.should.equal(false);
+      slots[3].type.should.equal("none");
+      slots[3].filled.should.equal(false);
     });
 
     makeTurn("Alice", game, "invalid");
@@ -960,17 +972,17 @@ describe('game flow', function() {
         });
       }
 
-      function checkFreeSlots(game, desc, slotNum) {
-        it("should equal " + slotNum + " for " + desc, function() {
+      function checkFreeSlots(game, desc, playerNum) {
+        it("should equal " + playerNum + " for " + desc, function() {
           return parseCall("Alice", "findGames", {}).then(
             function(entity) {
               var result = entityResult(entity, constants.t.GAME_LIST);
               result.should.have.property("games");
-              if (slotNum == -1) {
+              if (playerNum == -1) {
                 result.games.length.should.equal(0);
               } else {
                 result.games.length.should.equal(1);
-                result.games[0].freeSlots.should.equal(slotNum);
+                result.games[0].freeSlots.should.equal(playerNum);
               }
             }
           );
@@ -978,10 +990,10 @@ describe('game flow', function() {
       }
 
       var game = {};
-      function testGameSlots(desc, slotNum, slots) {
+      function testGameSlots(desc, playerNum, slots) {
         purgeRandom();
         createGameSlots(game, desc, slots);
-        checkFreeSlots(game, slotNum);
+        checkFreeSlots(game, playerNum);
       }
       
       purgeRandom();
@@ -1060,6 +1072,8 @@ describe('game flow', function() {
         { type: "open" }
       ], "duplicate invites should error", resultShouldError(constants.t.GAME_INVALID_CONFIG));
 
+
+
       purgeRandom();
       createGameSlots(game, [
         { type: "creator" },
@@ -1068,6 +1082,7 @@ describe('game flow', function() {
         { type: "open" }
       ]);
       joinGame("Bob", game);
+      checkFreeSlots(game, 'game with two open, one ai', 1);
 
       function checkSlots(game) {
         game.should.have.property("config");
@@ -1121,6 +1136,21 @@ describe('game flow', function() {
           }
         );
       });
+
+      
+
+      purgeRandom();
+      createGameSlots(game, [
+        { type: "creator" },
+        { type: "open" },
+        { type: "none" },
+        { type: "open" }
+      ]);
+      joinGame("Bob", game);
+      checkFreeSlots(game, 'game with two open, one none', 1);
+
+
+
 
 
     });
@@ -1422,10 +1452,13 @@ describe("contacts", function() {
 
     it('creates a game and gets the game id with Alice', function() {
       return parseCall("Alice", "createGame", {
-        "slotNum": 4,
-        "isRandom": true,
+        "slots": [
+          { "type": "creator" },
+          { "type": "open" },
+          { "type": "none" },
+          { "type": "open" },
+        ],
         "fameCards": { "The Chinatown Connection": 3 },
-        "aiDifficulty": AIDifficulty.None,
         "turnMaxSec": 60
       }).then(
         function(entity) {

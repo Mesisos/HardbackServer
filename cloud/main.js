@@ -333,8 +333,8 @@ jobs.process('game turn timeout', 10, function(job, done) {
       function(lastTurn) {
 
         var consecutiveTurnTimeouts = game.get("consecutiveTurnTimeouts");
-        var slotNum = game.get("config").get("slotNum");
-        var timeoutRounds = (consecutiveTurnTimeouts + 1) / slotNum;
+        var playerNum = game.get("config").get("playerNum");
+        var timeoutRounds = (consecutiveTurnTimeouts + 1) / playerNum;
         
         game.increment("consecutiveTurnTimeouts");
 
@@ -356,7 +356,7 @@ jobs.process('game turn timeout', 10, function(job, done) {
         if (timeoutRounds >= constants.GAME_ENDING_INACTIVE_ROUNDS) {
           job.log("Game timed out");
           job.log("  consecutiveTurnTimeouts:", consecutiveTurnTimeouts);
-          job.log("  slotNum:", slotNum);
+          job.log("  playerNum:", playerNum);
           game.set("state", GameState.Ended);
           return Promise.when(
             null,
@@ -782,6 +782,7 @@ function createConfigFromRequest(req) {
   var isRandom = false;
   var displayNames = [];
   var creatorSlots = 0;
+  var noneSlots = 0;
   for (var slotIndex in reqSlots) {
     var reqSlot = reqSlots[slotIndex];
     var slot = {};
@@ -815,11 +816,14 @@ function createConfigFromRequest(req) {
           }));
         }
         break;
+      case SlotType.None:
+        noneSlots++;
+        break;
     }
 
     slots.push(slot);
   }
-  config.set("slotNum", slots.length);
+  config.set("playerNum", slots.length - noneSlots);
   config.set("isRandom", isRandom);
 
   if (creatorSlots != 1) {
@@ -1191,7 +1195,7 @@ function joinGame(game, user) {
     function(c) {
       playerCount = c;
       if (initial) return Promise.resolve(game);
-      var maxPlayers = config.get("slotNum");
+      var maxPlayers = config.get("playerNum");
       var promise;
       if (playerCount > maxPlayers) {
         promise = new Promise();
@@ -1670,7 +1674,7 @@ function prepareTurn(game, player, previousTurn) {
       ", " + "Player " + player.id +
       ", " + timeout + "s" +
       ", " + (game.get("consecutiveTurnTimeouts") + 1) + " / " +
-             constants.GAME_ENDING_INACTIVE_ROUNDS*config.get("slotNum"),
+             constants.GAME_ENDING_INACTIVE_ROUNDS*config.get("playerNum"),
     playerId: player.id
   }).then(
     function(j) {

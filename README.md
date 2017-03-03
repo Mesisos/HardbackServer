@@ -352,32 +352,32 @@ Change user preferences, currently only supports changing the avatar.
   // The order of the slots defines the order
   // of the game turns / rounds.
   //
-  // This generates a `slotNum` field, which just holds
-  // the number of slots provided, and an `isRandom` field,
+  // This generates a `playerNum` field, which holds the
+  // number of non-`none`-type slots, and an `isRandom` field,
   // which is `true` if there are any `open`-type slots. 
   "slots": [
 
     // A publicly open slot, at least one
     // slot has to be open to mark the game as `isRandom`
     // and make it findable via `findGames`
-    { "type": "open", "avatar": 0 },
+    { "type": "open" },
 
     // Exactly one of these has to be present. The creator
     // gets automatically assigned to this slot.
-    { "type": "creator", "avatar": 3 },
+    { "type": "creator" },
 
     // Reserved slot by display name. Converted to `userId`
     // on game creation to lock down the specified user, which
     // might be useful if display names are ever changeable.
-    { "type": "invite", "avatar": 2, "displayName": "name" },
+    { "type": "invite", "displayName": "name" },
 
     // AI-type slot, not implemented correctly right now.
     // `difficulty` is an integer enum defined above.
-    { "type": "ai", "avatar": 2, "difficulty": integer },
+    { "type": "ai", "difficulty": integer },
     
     // Accepted for now, but not really useful? Maybe for easier
     // mapping of indices.
-    { "type": "none", "avatar": 1 },
+    { "type": "none" },
   ],
 
   "fameCards": {
@@ -402,7 +402,9 @@ Change user preferences, currently only supports changing the avatar.
   "game": {
     "objectId": "id",
     "config": {
-      "slotNum": 2,
+      // Number of players in the game, i.e. number of slots that do not have
+      // the "none" type.
+      "playerNum": 2,
       ...
     }
     ...
@@ -587,7 +589,7 @@ List all the games the logged-in user is currently participating in.
               }
             }
         ]
-        "slotNum": integer,
+        "playerNum": integer,
         "isRandom": true|false,
         "turnMaxSec": integer,
       ]
