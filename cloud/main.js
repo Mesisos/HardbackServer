@@ -73,11 +73,9 @@ var parseObjectConfig = {
         }
         context.players.forEach(function(player) {
           var gameId = player.get("game").id;
+          if (gameId != game.objectId) return;
           var slotIndex = player.get("slot");
-          if (
-            gameId == game.objectId &&
-            player.get("user").id == context.userId
-          ) {
+          if (player.get("user").id == context.userId) {
             game.joined = true;
           }
           if (!slots) return;
