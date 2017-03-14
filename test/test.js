@@ -1,6 +1,5 @@
 process.env.SERVER_ROOT = "http://127.0.0.1:5000";
 // process.env.SERVER_ROOT = "http://paperback.herokuapp.com";
-// process.env.REDIS_URL = "";
 
 var appId = "pbserver";
 var masterKey = "12345";
@@ -588,6 +587,61 @@ describe('game flow', function() {
     var turnNumber = 0;
 
     makeTurn("Bob",   game, "deny",  turnNumber);
+
+    it('should error on missing game turn save', function() {
+      return parseCall('Alice', "gameTurn", {
+        gameId: game.id
+      }).then(
+        function(entity) {
+          entityError(entity, constants.t.TURN_INVALID_SAVE);
+        }
+      );
+    });
+    
+    it('should error on undefined game turn save', function() {
+      return parseCall('Alice', "gameTurn", {
+        gameId: game.id,
+        save: undefined
+      }).then(
+        function(entity) {
+          entityError(entity, constants.t.TURN_INVALID_SAVE);
+        }
+      );
+    });
+
+    it('should error on null game turn save', function() {
+      return parseCall('Alice', "gameTurn", {
+        gameId: game.id,
+        save: null
+      }).then(
+        function(entity) {
+          entityError(entity, constants.t.TURN_INVALID_SAVE);
+        }
+      );
+    });
+
+    it('should error on empty game turn save', function() {
+      return parseCall('Alice', "gameTurn", {
+        gameId: game.id,
+        save: ""
+      }).then(
+        function(entity) {
+          entityError(entity, constants.t.TURN_INVALID_SAVE);
+        }
+      );
+    });
+
+    it('should error on wrong type game turn save', function() {
+      return parseCall('Alice', "gameTurn", {
+        gameId: game.id,
+        save: 12345
+      }).then(
+        function(entity) {
+          entityError(entity, constants.t.TURN_INVALID_SAVE);
+        }
+      );
+    });
+
     makeTurn("Alice", game, "allow", turnNumber++);
     makeTurn("Alice", game, "deny",  turnNumber);
     makeTurn("Bob",   game, "allow", turnNumber++);

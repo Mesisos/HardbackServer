@@ -245,6 +245,9 @@ module.exports = Object.freeze({
     TURN_NOT_IT: { id: 1301, m:
       "Game turn invalid, it's not your turn!"
     },
+    TURN_INVALID_SAVE: { id: 1302, m:
+      "Game turn save string invalid."
+    },
 
     CONTACT_NOT_FOUND: { id: 1404, m:
       "Contact not found."

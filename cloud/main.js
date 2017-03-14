@@ -1774,8 +1774,10 @@ Parse.Cloud.define("gameTurn", function(req, res) {
           return Promise.reject(new CodedError(constants.t.TURN_NOT_IT));
         }
 
-        var save = String(req.params.save);
-        // TODO: validate
+        var save = req.params.save;
+        if (!save || typeof(save) != 'string' || save === "") {
+          return Promise.reject(new CodedError(constants.t.TURN_INVALID_SAVE));
+        }
 
         var turn = new Turn();
         turn.set("game", game);

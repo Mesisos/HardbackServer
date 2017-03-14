@@ -16,7 +16,9 @@
   },
   "scripts": {
     "start": "node index.js",
-    "test": "mocha --timeout 5000"
+    "test": "mocha --timeout 5000",
+    "mongo": "mongod --dbpath mongo",
+    "dashboard": "parse-dashboard --config parse-dashboard-config.json"
   },
   "engines": {
     "node": ">=4.3"
