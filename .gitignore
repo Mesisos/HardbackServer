@@ -38,3 +38,4 @@ test/sessions.json
 # Heroku local environment config
 .env
 parse-dashboard-config.json
+parse-dashboard-heroku.json

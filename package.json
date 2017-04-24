@@ -4,15 +4,15 @@
   "description": "Paperback Parse Server",
   "main": "index.js",
   "dependencies": {
-    "express": "~4.11.x",
+    "express": "^4.11.2",
     "human-time": "0.0.1",
     "json-property-filter": "^1.2.0",
-    "kerberos": "~0.0.x",
+    "kerberos": "0.0.23",
     "kue": "^0.11.5",
-    "moment": "^2.16.0",
-    "mustache-express": "^1.2.2",
-    "parse": "~1.8.0",
-    "parse-server": "^2.2.22"
+    "moment": "^2.18.1",
+    "mustache-express": "^1.2.4",
+    "parse": "^1.8.5",
+    "parse-server": "^2.3.8"
   },
   "scripts": {
     "start": "node index.js",
@@ -25,7 +25,8 @@
   },
   "devDependencies": {
     "chai": "^3.5.0",
-    "mocha": "^3.1.2",
+    "dotenv": "^4.0.0",
+    "mocha": "^3.3.0",
     "rest": "^2.0.0"
   }
 }

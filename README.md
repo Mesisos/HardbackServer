@@ -189,12 +189,13 @@ For Parse server-level errors, see Parse Server documentation.
 ### Request parameters
 ```
 {
-  // Email that also acts as a username for the user.
-  "email": "test@example.com",
+  // Username should be an email that is then also used for verification and
+  // password reset.
+  "username": "test@example.com",
   
-  // Username is set to be the same as the email automatically, so this field is
-  // ignored, but it cannot be omitted or you will get an error.
-  "username": "",
+  // Email should not be used anymore, it is set to be the same as the username
+  // automatically.
+  // "email": --- deprecated ---,
   
   "password": "password",
 

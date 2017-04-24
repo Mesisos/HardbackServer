@@ -1,8 +1,7 @@
-process.env.SERVER_ROOT = "http://127.0.0.1:5000";
-// process.env.SERVER_ROOT = "http://paperback.herokuapp.com";
+require('dotenv').config()
 
-var appId = "pbserver";
-var masterKey = "12345";
+var appId = process.env.APP_ID;
+var masterKey = process.env.MASTER_KEY;
 
 var constants = require('../cloud/constants.js');
 var GameState = constants.GameState;

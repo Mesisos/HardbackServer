@@ -1891,7 +1891,7 @@ Parse.Cloud.define("userSet", function(req, res) {
 Parse.Cloud.beforeSave(Parse.User, function(req, res) {
     var user = req.object;
 
-    var email = user.get("email");
+    var email = user.get("username");
     if
       (
         !email || 
@@ -1903,7 +1903,13 @@ Parse.Cloud.beforeSave(Parse.User, function(req, res) {
       return;
     }
 
-    user.set("username", email);
+    var emailField = user.get("email");
+    if (emailField) {
+      res.error(constants.t.INVALID_PARAMETER);
+      return;
+    }
+
+    user.set("email", email);
 
     var displayName = user.get("displayName");
 
