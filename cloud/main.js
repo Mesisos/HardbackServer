@@ -1933,8 +1933,8 @@ Parse.Cloud.beforeSave(Parse.User, function(req, res) {
     }
 
     var query = new Query(Parse.User);
+    if (user.id) query.notEqualTo("objectId", user.id)
     query
-      .notEqualTo("objectId", user.id)
       .equalTo("displayName", displayName)
       .first()
       .then(
