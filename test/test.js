@@ -13,6 +13,7 @@ var testTimeouts = false;
 
 var should = require('chai').should();
 var fs = require('fs');
+var util = require('util');
 var rest = require('rest');
 var mime = require('rest/interceptor/mime');
 var Parse = require('parse/node');
@@ -147,7 +148,7 @@ function entityError(entity, message) {
     actual = actual ? actual + " (" + error.code + ")" : error.code;
   }
 
-  var msg = "Expected " + actual + " to equal " + expected;
+  var msg = "Expected " + actual + " to equal " + expected + "\n" + util.inspect(error);
   error.code.should.equal(message.id, msg);
 
   error.should.not.have.property("error");

@@ -1899,13 +1899,13 @@ Parse.Cloud.beforeSave(Parse.User, function(req, res) {
         email.indexOf("@") == -1
       )
     {
-      res.error(constants.t.INVALID_PARAMETER);
+      respondError(res, constants.t.INVALID_PARAMETER);
       return;
     }
 
     var emailField = user.get("email");
     if (emailField) {
-      res.error(constants.t.INVALID_PARAMETER);
+      respondError(res, constants.t.INVALID_PARAMETER);
       return;
     }
 
@@ -1921,14 +1921,14 @@ Parse.Cloud.beforeSave(Parse.User, function(req, res) {
         displayName.length > constants.DISPLAY_NAME_MAX
       )
     {
-      res.error(constants.t.INVALID_PARAMETER);
+      respondError(res, constants.t.INVALID_PARAMETER);
       return;
     }
     
     var avatar = user.get("avatar");
     if (typeof(avatar) == 'undefined') avatar = constants.AVATAR_DEFAULT;
     if (typeof(avatar) != "number" || isNaN(avatar)) {
-      res.error(constants.t.INVALID_PARAMETER);
+      respondError(res, constants.t.INVALID_PARAMETER);
       return;
     }
 
@@ -1940,10 +1940,10 @@ Parse.Cloud.beforeSave(Parse.User, function(req, res) {
       .then(
         function(result) {
           if (result) {
-            res.error(constants.t.DISPLAY_NAME_TAKEN);
-          } else {
-            res.success();
+            respondError(res, constants.t.DISPLAY_NAME_TAKEN)
+            return
           }
+          res.success();
         },
         respondError(res)
     );
