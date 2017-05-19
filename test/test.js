@@ -1443,6 +1443,17 @@ describe('game flow', function() {
         games.should.have.length(0);
       }
     );
+    
+    listGames("Bob", [game],
+      "should change the Alice slot type to AI",
+      function(games) {
+        games.should.have.length(1);
+        
+        var slots = games[0].config.slots;
+        slots.should.have.length(3);
+        slots[0].type.should.equal("ai");
+      }
+    );
 
 
     leaveGame("Alice", game,
@@ -1459,6 +1470,18 @@ describe('game flow', function() {
       resultShouldError(constants.t.GAME_INVALID_STATE)
     );
     leaveGame("Bob", game);
+
+    listGames("Carol", [game],
+      "should change the Bob slot type to AI",
+      function(games) {
+        games.should.have.length(1);
+        
+        var slots = games[0].config.slots;
+        slots.should.have.length(3);
+        slots[1].type.should.equal("ai");
+      }
+    );
+
     leaveGame("Bob", game,
       "should not allow Bob to leave the game twice",
       resultShouldError(constants.t.PLAYER_NOT_IN_GAME)

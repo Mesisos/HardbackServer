@@ -1306,6 +1306,7 @@ Parse.Cloud.define("leaveGame", function(req, res) {
   var aborted;
   var gameQuery = new Query(Game);
   gameQuery
+    .include("config")
     .get(gameId)
     .then(
       function(g) {
@@ -1343,8 +1344,18 @@ Parse.Cloud.define("leaveGame", function(req, res) {
           notifyGame(game, constants.t.GAME_ABORTED, {
             game: game
           });
+        } else {
+          // Change slot to AI
+          var config = game.get("config");
+          var slots = config.get("slots");
+          var slotIndex = player.get("slot");
+          if (!(slotIndex >= 0 && slotIndex < slots.length)) {
+            return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG));
+          }
+          var slot = slots[slotIndex];
+          slot.type = SlotType.AI;
         }
-
+        
         return Promise.when(
           player.save(),
 
@@ -1352,9 +1363,7 @@ Parse.Cloud.define("leaveGame", function(req, res) {
             gameNextPlayer(game) :
             Promise.resolve(player),
 
-          aborted ?
-            game.save() :
-            Promise.resolve(game)
+          game.save()
         );
       }
     ).then(
