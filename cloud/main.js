@@ -1304,6 +1304,7 @@ Parse.Cloud.define("leaveGame", function(req, res) {
   var game;
   var currentLeft;
   var aborted;
+  var finished;
   var gameQuery = new Query(Game);
   gameQuery
     .include("config")
@@ -1333,36 +1334,22 @@ Parse.Cloud.define("leaveGame", function(req, res) {
         leaver = player;
         player.set("state", PlayerState.Inactive);
         
-        if (game.get("state") == GameState.Ended) {
-          return player.save().then(
-            function() {
-              var activeCountQuery = new Query(Player);
-              return activeCountQuery
-                .equalTo("game", game)
-                .equalTo("state", PlayerState.Active)
-                .count()
-            }
-          ).then(
-            function(count) {
-              if (count > 0) return;
-              return game.destroy();
-            }
-          );
-        }
-        
         var currentPlayer = game.get("currentPlayer");
         currentLeft = currentPlayer && currentPlayer.id == player.id;
 
         aborted =
           game.get("state") == GameState.Lobby &&
           game.get("creator").id == user.id;
+
+        finished =
+          game.get("state") == GameState.Ended;
         
         if (aborted) {
           game.set("state", GameState.Ended);
           notifyGame(game, constants.t.GAME_ABORTED, {
             game: game
           });
-        } else {
+        } else if (!finished) {
           // Change slot to AI
           var config = game.get("config");
           var slots = config.get("slots");
@@ -1383,6 +1370,26 @@ Parse.Cloud.define("leaveGame", function(req, res) {
 
           game.save()
         );
+      }
+    ).then(
+      function(player, nextPlayer, g) {
+        game = g;
+        if (game.get("state") == GameState.Ended) {
+          return player.save().then(
+            function() {
+              var activeCountQuery = new Query(Player);
+              return activeCountQuery
+                .equalTo("game", game)
+                .equalTo("state", PlayerState.Active)
+                .count()
+            }
+          ).then(
+            function(count) {
+              if (count > 0) return;
+              return game.destroy();
+            }
+          );
+        }
       }
     ).then(
       function() {

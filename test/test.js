@@ -1985,130 +1985,26 @@ describe("kue", function() {
 
 describe("cleanup", function() {
   before(getUserSessions);
-
-  describe("game", function() {
-
-    var game = {};
-
-    it('gets created with Alice', function() {
-      return parseCall("Alice", "createGame", {
-        slots: [
-          { type: "creator" },
-          { type: "open" }
-        ]
-      }).then(
-        function(entity) {
-          game.id = entityGameId(entity);
-          game.result = entityResult(entity);
-        }
-      );
-    });
-    
-    it('provides invite link to Alice', function() {
-      return parseCall("Alice", "getInvite", {
-        "gameId": game.id
-      }).then(
-        function(entity) {
-          var result = entityResult(entity, constants.t.GAME_INVITE);
-          game.invite = result.invite;
-        }
-      );
-    });
-
-    joinGame("Bob", game);
-
-    var turnNumber = 0;
-    makeTurn("Alice", game, "allow", turnNumber++);
-    makeTurn("Bob", game, "allow", turnNumber++);
-    makeTurn("Alice", game, "allow", turnNumber++);
-    makeTurn("Bob", game, "allow", turnNumber++);
-    
-    it('provides turn list', function() {
-      return parseCall("Alice", "listTurns", {
-        gameId: game.id,
-        limit: 10,
-        skip: 0
-      }).then(
-        function(entity) {
-          var result = entityResult(entity, constants.t.TURN_LIST);
-          game.turns = result.turns;
-        }
-      );
-    });
-
-    function exists(extraDesc) {
-      extraDesc = extraDesc ? " " + extraDesc : "";
-      it('exists' + extraDesc, function() {
-        return parseCall({ useMasterKey: true }, "classes/Game/" + game.id).then(
-          function(retGame) {
-            retGame.objectId.should.equal(game.id);
-            game.jobs = [
-              retGame.turnTimeoutJob
-            ];
-            if (game.result.state == GameState.Lobby) {
-              game.jobs.push(retGame.lobbyTimeoutJob);
-            }
-          }
-        );
-      });
-    }
-    exists();
-
-    it('jobs exist', function() {
-      return Promise.when(game.jobs.map(
-        function(jobId) {
-          return getJob(jobId);
-        }
-      )).then(
-        function(retJobs) {
-          for (var jobIndex in retJobs) {
-            var jobId = game.jobs[jobIndex];
-            var retJob = retJobs[jobIndex];
-            retJob.id.should.equal(jobId);
+  
+  var game = {};
+  function exists(extraDesc) {
+    extraDesc = extraDesc ? " " + extraDesc : "";
+    it('exists' + extraDesc, function() {
+      return parseCall({ useMasterKey: true }, "classes/Game/" + game.id).then(
+        function(retGame) {
+          retGame.objectId.should.equal(game.id);
+          game.jobs = [
+            retGame.turnTimeoutJob
+          ];
+          if (game.result.state == GameState.Lobby) {
+            game.jobs.push(retGame.lobbyTimeoutJob);
           }
         }
       );
     });
-    
-    it('turns exist', function() {
-      return Promise.when(game.turns.map(
-        function(turn) {
-          return parseCall({ useMasterKey: true }, "classes/Turn/" + turn.objectId);
-        }
-      )).then(
-        function(retTurns) {
-          for (var turnIndex in retTurns) {
-            var turn = game.turns[turnIndex];
-            var retTurn = retTurns[turnIndex];
-            retTurn.objectId.should.equal(turn.objectId);
-          }
-        }
-      );
-    });
-    
-    it('invite exists', function() {
-      return parseCall({ useMasterKey: true }, "classes/Invite/" + game.invite.objectId).then(
-        function(retInvite) {
-          retInvite.objectId.should.equal(game.invite.objectId);
-        }
-      );
-    });
+  }
 
-
-    // Use leaveGame with all players to destroy the game
-
-    makeTurn("Alice", game, "finish", turnNumber++);
-    exists("after finishing turn");
-
-    leaveGame("Alice", game)
-    exists("after Alice leaves");
-
-    leaveGame("Bob", game)
-
-
-
-
-    
+  function destroyed() {
     it('does not exist anymore', function() {
       return parseCall({ useMasterKey: true }, "classes/Game/" + game.id).then(
         function(result) {
@@ -2166,8 +2062,181 @@ describe("cleanup", function() {
         }
       );
     });
+  }
 
+  describe("game normally", function() {
+
+    it('gets created with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        slots: [
+          { type: "creator" },
+          { type: "open" }
+        ]
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+          game.result = entityResult(entity);
+        }
+      );
+    });
+    
+    it('provides invite link to Alice', function() {
+      return parseCall("Alice", "getInvite", {
+        "gameId": game.id
+      }).then(
+        function(entity) {
+          var result = entityResult(entity, constants.t.GAME_INVITE);
+          game.invite = result.invite;
+        }
+      );
+    });
+
+    joinGame("Bob", game);
+
+    var turnNumber = 0;
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob", game, "allow", turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob", game, "allow", turnNumber++);
+    
+    it('provides turn list', function() {
+      return parseCall("Alice", "listTurns", {
+        gameId: game.id,
+        limit: 10,
+        skip: 0
+      }).then(
+        function(entity) {
+          var result = entityResult(entity, constants.t.TURN_LIST);
+          game.turns = result.turns;
+        }
+      );
+    });
+
+    exists();
+
+    it('jobs exist', function() {
+      return Promise.when(game.jobs.map(
+        function(jobId) {
+          return getJob(jobId);
+        }
+      )).then(
+        function(retJobs) {
+          for (var jobIndex in retJobs) {
+            var jobId = game.jobs[jobIndex];
+            var retJob = retJobs[jobIndex];
+            retJob.id.should.equal(jobId);
+          }
+        }
+      );
+    });
+    
+    it('turns exist', function() {
+      return Promise.when(game.turns.map(
+        function(turn) {
+          return parseCall({ useMasterKey: true }, "classes/Turn/" + turn.objectId);
+        }
+      )).then(
+        function(retTurns) {
+          for (var turnIndex in retTurns) {
+            var turn = game.turns[turnIndex];
+            var retTurn = retTurns[turnIndex];
+            retTurn.objectId.should.equal(turn.objectId);
+          }
+        }
+      );
+    });
+    
+    it('invite exists', function() {
+      return parseCall({ useMasterKey: true }, "classes/Invite/" + game.invite.objectId).then(
+        function(retInvite) {
+          retInvite.objectId.should.equal(game.invite.objectId);
+        }
+      );
+    });
+
+
+    // Use leaveGame with all players to destroy the game
+
+    makeTurn("Alice", game, "finish", turnNumber++);
+    exists("after finishing turn");
+
+    leaveGame("Alice", game)
+    exists("after Alice leaves");
+
+    leaveGame("Bob", game)
+
+    destroyed();
   });
+
+  describe("game when everyone leaves mid-game", function() {
+    
+    it('gets created with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        slots: [
+          { type: "creator" },
+          { type: "open" },
+          { type: "open" }
+        ]
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+          game.result = entityResult(entity);
+        }
+      );
+    });
+    
+    it('provides invite link to Alice', function() {
+      return parseCall("Alice", "getInvite", {
+        "gameId": game.id
+      }).then(
+        function(entity) {
+          var result = entityResult(entity, constants.t.GAME_INVITE);
+          game.invite = result.invite;
+        }
+      );
+    });
+    
+    joinGame("Bob", game);
+    joinGame("Carol", game);
+
+    var turnNumber = 0;
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob", game, "allow", turnNumber++);
+    makeTurn("Carol", game, "allow", turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob", game, "allow", turnNumber++);
+    makeTurn("Carol", game, "allow", turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob", game, "allow", turnNumber++);
+    
+    it('provides turn list', function() {
+      return parseCall("Alice", "listTurns", {
+        gameId: game.id,
+        limit: 10,
+        skip: 0
+      }).then(
+        function(entity) {
+          var result = entityResult(entity, constants.t.TURN_LIST);
+          game.turns = result.turns;
+        }
+      );
+    });
+
+    exists();
+
+    // Use leaveGame with all players to destroy the game
+
+    leaveGame("Carol", game)
+    exists("after Carol leaves");
+    
+    leaveGame("Alice", game)
+    exists("after Alice leaves");
+
+    leaveGame("Bob", game)
+
+    destroyed();
+  });
+
 
 });
 
