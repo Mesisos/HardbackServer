@@ -446,6 +446,93 @@ describe('public', function() {
 describe('game flow', function() {
   before(getUserSessions);
 
+  describe('invites', function() {
+
+    var game = {};
+
+    it('creates a game and gets the game id with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        "slots": [
+          { type: "creator" },
+          { type: "open" },
+          { type: "invite", displayName: "Bobzor" },
+          { type: "invite", displayName: "Carry" },
+        ],
+        "fameCards": {},
+        "turnMaxSec": 60
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+          var result = entityResult(entity, constants.t.GAME_CREATED);
+          result.game.state.should.equal(GameState.Lobby);
+
+          var slots = result.game.config.slots;
+          slots.should.have.length(4);
+          slots[3].type.should.equal("invite");
+
+        }
+      );
+    });
+    
+    function checkSlots(expectedFill) {
+      listGames("Alice", [game],
+        "should return these slots as filled: " + expectedFill,
+        function(games) {
+          games.should.have.length(1);
+          game.id.should.equal(games[0].objectId);
+
+          var slots = games[0].config.slots;
+          var filled = slots.map(function(slot) {
+            return slot.filled;
+          })
+
+          filled.should.deep.equal(expectedFill);
+
+        }
+      );
+    }
+    checkSlots([true, false, false, false])
+
+    joinGame("Bob", game);
+    checkSlots([true, false, true, false])
+    listGames("Alice", [game],
+      "should keep the same slot type",
+      function(games) {
+        games.should.have.length(1);
+        game.id.should.equal(games[0].objectId);
+
+        var slots = games[0].config.slots;
+        slots.should.have.length(4);
+        slots[3].type.should.equal("invite");
+      }
+    );
+
+    it('declines invite with Carol', function() {
+      return parseCall("Carol", "declineInvite", {
+        "gameId": game.id
+      }).then(
+        function(entity) {
+          entityResult(entity, constants.t.GAME_INVITE_DECLINED);
+        }
+      );
+    });
+    checkSlots([true, false, true, false])
+
+    listGames("Alice", [game],
+      "should have the slot type changed to open",
+      function(games) {
+        games.should.have.length(1);
+        game.id.should.equal(games[0].objectId);
+
+        var slots = games[0].config.slots;
+        slots.should.have.length(4);
+        slots[3].type.should.equal("open");
+      }
+    );
+
+  })
+
+
   describe('two user game', function() {
 
     var gameByName = {};

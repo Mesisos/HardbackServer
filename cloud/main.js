@@ -1369,6 +1369,48 @@ Parse.Cloud.define("leaveGame", function(req, res) {
 
 });
 
+Parse.Cloud.define("declineInvite", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+  
+  var gameId = String(req.params.gameId);
+  
+  var game;
+  var gameQuery = new Query(Game);
+  gameQuery
+    .include("config")
+    .get(gameId)
+    .then(
+      function(g) {
+        game = g;
+        if (!game) return Promise.reject(new CodedError(constants.t.GAME_NOT_FOUND));
+        
+        if (errorOnInvalidGame(game, res, [
+          GameState.Lobby
+        ])) return;
+
+        var config = game.get("config");
+        var slots = config.get("slots");
+        var inviteSlot = slots.find(function(slot) {
+          return slot.type == SlotType.Invite && slot.userId == user.id
+        });
+
+        if (!inviteSlot) return Promise.reject(new CodedError(constants.t.GAME_INVITE_ERROR));
+
+        inviteSlot.type = SlotType.Open;
+        inviteSlot.userId = undefined;
+
+        return config.save();
+      }
+    ).then(
+      function() {
+        respond(res, constants.t.GAME_INVITE_DECLINED, {});
+      },
+      respondError(res)
+    )
+
+});
+
 
 
 function addContacts(game, player) {

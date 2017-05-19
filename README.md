@@ -4,137 +4,13 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 
 ## Running locally
 
-* `mongo-server.bat` to run the Mongo database server
-* `dashboard.bat` to run the Parse dashboard for database inspection
-* `heroku local` to run the web server locally in a Heroku environment
+* `npm run dev` to run mongo and dashboard
+* `npm run mongo` to run the Mongo database server
+* `npm run dashboard` to run the Parse dashboard for database inspection
+* `npm run local` or `heroku local` to run the web server locally in a Heroku environment
 * `npm test` to run behavior tests
 
-# TODO
-
-## Tasks
-* [X] ~~*Move code to cloud functions*~~
-* [X] ~~*Write script to create db schema*~~
-* [X] ~~*Add beforeSave to avoid duplicate display names*~~
-* [X] ~~*Add contacts on join game*~~
-* [X] ~~*Handle game state*~~
-  * [X] ~~*Init*~~
-  * [X] ~~*Lobby*~~
-  * [X] ~~*Running*~~
-  * [X] ~~*Ended*~~
-* [X] ~~*Go over questions and add missing tasks*~~
-* [X] ~~*Request random game*~~
-  * [X] ~~*Find a game*~~
-  * [X] ~~*Join game*~~
-  * [X] ~~*Create game if no random exists*~~
-  * [X] ~~*Actually don't create a game and just return failure*~~
-  * [X] ~~*Just return a list of available random games?*~~
-  * [X] ~~*Possible paging via date offset and number limit*~~
-  * [X] ~~*Add the capability of joining into multiple lobbies (it shouldn't try joining in a game it's already in)*~~
-* [X] ~~*Look into Loom integration*~~
-* [X] ~~*Fame card per-card counts*~~
-* [X] ~~*Add end game condition flag on game turn call*~~
-  * [X] ~~*End the game*~~
-  * [X] ~~*Send the save to all players (via push notifications?)*~~
-* [X] ~~*AI difficulty instead of number*~~
-* [X] ~~*Fix maxSlots so it includes AI*~~
-* [X] ~~*Allow start game by creator after manual timeout as long as two people are in it*~~
-  * [X] ~~*Game starts automatically after the auto timeout (or ends if it has less than 2 players in it)*~~
-* [X] ~~*Join via link*~~
-  * [X] ~~*Add test to getInvite*~~
-* [X] ~~*Leave game*~~
-  * [X] ~~*Inactivates player*~~
-  * [X] ~~*Transitions to next player if leaver was current player*~~
-  * [X] ~~*Game ends if <= 1 person remains?*~~
-* [X] ~~*List turns / get last turn*~~
-* [ ] Setup push notifications
-  * [X] ~~*Android*~~
-  * [ ] iOS
-* [ ] Push notifications for events
-  * [X] ~~*Start game (after `joinGame` or `startGame`): send the game state to all players*~~
-  * [X] ~~*Game turn: send the turn to the next player*~~
-  * [X] ~~*Final game turn to all the players*~~
-  * [X] ~~*Replace all alerts with templates from constants*~~
-  * [ ] Add push notification expiration dates
-  * [ ] ? On/near game start timeout
-  * [ ] ? On/near turn timeout
-  * [ ] ? Join game
-  * [ ] ? Leave game
-* [X] ~~*Skip to next player after turn timeout (48h?), cronjob or kue/redis with timed jobs, maybe don't actually skip, but provide the option for the next player to have a button that skips*~~
-  * [X] ~~*Don't skip if the turn was made + tests*~~
-  * [X] ~~*Timeout timing out?*~~
-* [X] ~~*Add test for listGames not returning a game a player has left*~~
-* [X] ~~*Clean up responses so they don't contain too much stuff*~~
-* [ ] Convert TODOs into tasks
-* [X] ~~*Replace defaultError with semantic errors*~~
-  * [X] ~~*Proper error codes!*~~
-* [ ] Index functions to cloud code with master key
-* [ ] Query limits?
-* [X] ~~*Filter returned User objects (listFriends etc.)*~~
-* [ ] Verify parameter validity on saving of all (most? at least Game?) objects
-  * [ ] beforeSave User?
-* [ ] Analyze performance and add Mongo indexes if necessary/possible
-* [ ] Convert functions to Parse.Object.extend instance/class methods?
-* [ ] Add invited player ids to the create game call so that those slots can be marked as taken, and have the invites go out
-* [ ] Add an integer to the player info that specifies which avatar they're using
-
-### Someday
-* [ ] Blocking of friends?
-
-## Questions
-* [X] Are username and display name separate ala Steam? _Yes_
-* [X] What are friends?
-  * People you played with recently? _Yes_
-  * Can you add them manually? _Only by playing with them via link_
-  * Can you do anything with friends? _Start a game, delete them_
-* [X] Does removing a friend block them and/or can you block people?
-  * _It doesn't block, but we might want blocking at some point._
-* [X] How does starting a game look? API call by creator only?
-  * _I think once a game is full, it probably ought to autostart, since they aren't "live" (ie - once everyone has responded to the game request)._
-  * _The creator ought to be allowed to start the game after the timer has expired, as long as there are two people in it_
-* [X] When does a game stop?
-  * _a game stops when a player wins :slightly_smiling_face: Probably need a call to notify of the game over condition, and then the file would be sent to all players (other than the person who ended the game).... maybe it's just a flag on the next turn call_
-* [X] Can a player leave a game before it ends?
-  * _Player leaving a game: I think a player could leave a game, at which point, they'd be replaced with an AI player.... Also, after a turn timeout (I've seen other games with turn timeouts of like 48 hours), the turn could be sent to the next player and just skip that persons turn, or we could send it with some info that says, "use an AI to play his turn"  skipping is probably easier_
-  * What happens when the creator leaves the game?
-    _I don't think it should matter - at the point the game starts, it's just round robin until it's done... creator is just another player_
-* [X] Which states can a game be in? E.g. [Pending, Running, Ended], anything else?
-  * _[Init, Lobby, Running, Ended]_
-* [X] Does max slots include AI number or not? _It does!_
-* [ ] Does the game end if < 2 people remain after players leave?
-  _If there is only one human left, the game should still send it to the last player - and then the client can ask if they want to continue the game, and if they do, can just continue it as a solo game until it's finished, and then send the result to the server..._
-* [ ] ~~*Request game*~~ _Replaced by findGames_
-  * [ ] Does request game search with specific config? _Probably with a limited set._
-  * [ ] Which config should it use for the lobby if no game exists? _It should probably just return a game/games instead of joining / creating automatically._
-* [ ] Invite message?
-* [ ] Custom game names / titles?
-* [ ] Can players rejoin a game they left?
-  * [ ] Can anyone else join a game after it starts?
-* [ ] Should display name be unique? If it's like steam, it can be whatever and the username is what really matters. Look into checkDisplayName if it should be changed/extended.
-
-## Account
-* [X] ~~*Create account*~~
-* [X] ~~*Display name*~~
-* [X] Setup email verification
-* [X] Login
-* [X] Setup password recovery
-* [ ] Track user devices?
-* [ ] Obscene name filter? **beforeSave?**
-
-## Ranking?
-
-## Security
-* [ ] HTTPS!
-* [X] ~~*Lock down various leaky REST call*~~
-  * [ ] Update Parse server to latest npm for filtering user emails, etc.
-  * [X] ~~*`ClassesRouter`: `parse/classes/_User` & co.*~~
-  * [X] ~~*`UsersRouter`: `parse/users` & co.*~~
-* [ ] Input validation (e.g. for save games)
-* [ ] Access security
-* [ ] Do we need to hide User object IDs?
-
 # API
-
-Subject to change.
 
 ## On success
 
@@ -442,6 +318,23 @@ Change user preferences, currently only supports changing the avatar.
   "invite": {
     "objectId": "id" // The invite ID
   }
+}
+```
+
+
+## `declineInvite`
+Declines the player invitation for the specified game and changes the relevant
+game slot to open-type.
+### Request
+```
+{
+  "gameId": "id"
+}
+```
+### Response
+```
+{
+  "code": GAME_INVITE_DECLINED / GAME_NOT_FOUND | GAME_INVITE_ERROR,
 }
 ```
 

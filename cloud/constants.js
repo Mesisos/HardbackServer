@@ -155,6 +155,8 @@ module.exports = Object.freeze({
     GAME_LIST: { id: 106 },
 
     USER_SAVED: { id: 107 },
+    
+    GAME_INVITE_DECLINED: { id: 108 },
 
     GAME_LOBBY_TIMEOUT: { id: 120, m:
       "Game {{game.objectId}} timed out, nobody joined!"
