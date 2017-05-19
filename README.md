@@ -360,6 +360,10 @@ game slot to open-type.
 
 
 ## `leaveGame`
+Used to leave the specified game and inactivate the player. If the game is still
+running, the user slot is replaced with an AI slot. All players must use this
+at the end of the game to indicate that they are done with it and so it can get
+destroyed.
 ### Request
 ```
 {

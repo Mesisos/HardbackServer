@@ -1315,7 +1315,8 @@ Parse.Cloud.define("leaveGame", function(req, res) {
         
         if (errorOnInvalidGame(game, res, [
           GameState.Lobby,
-          GameState.Running
+          GameState.Running,
+          GameState.Ended
         ])) return;
 
         var query = new Query(Player);
@@ -1331,6 +1332,23 @@ Parse.Cloud.define("leaveGame", function(req, res) {
         if (!player) return Promise.reject(new CodedError(constants.t.PLAYER_NOT_IN_GAME));
         leaver = player;
         player.set("state", PlayerState.Inactive);
+        
+        if (game.get("state") == GameState.Ended) {
+          return player.save().then(
+            function() {
+              var activeCountQuery = new Query(Player);
+              return activeCountQuery
+                .equalTo("game", game)
+                .equalTo("state", PlayerState.Active)
+                .count()
+            }
+          ).then(
+            function(count) {
+              if (count > 0) return;
+              return game.destroy();
+            }
+          );
+        }
         
         var currentPlayer = game.get("currentPlayer");
         currentLeft = currentPlayer && currentPlayer.id == player.id;
@@ -1367,8 +1385,7 @@ Parse.Cloud.define("leaveGame", function(req, res) {
         );
       }
     ).then(
-      function(player, nextPlayer, g) {
-        game = g;
+      function() {
         respond(res, constants.t.GAME_LEFT, {
           player: leaver
         });

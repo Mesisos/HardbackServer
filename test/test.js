@@ -2036,19 +2036,23 @@ describe("cleanup", function() {
       );
     });
 
-    it('exists', function() {
-      return parseCall({ useMasterKey: true }, "classes/Game/" + game.id).then(
-        function(retGame) {
-          retGame.objectId.should.equal(game.id);
-          game.jobs = [
-            retGame.turnTimeoutJob
-          ];
-          if (game.result.state == GameState.Lobby) {
-            game.jobs.push(retGame.lobbyTimeoutJob);
+    function exists(extraDesc) {
+      extraDesc = extraDesc ? " " + extraDesc : "";
+      it('exists' + extraDesc, function() {
+        return parseCall({ useMasterKey: true }, "classes/Game/" + game.id).then(
+          function(retGame) {
+            retGame.objectId.should.equal(game.id);
+            game.jobs = [
+              retGame.turnTimeoutJob
+            ];
+            if (game.result.state == GameState.Lobby) {
+              game.jobs.push(retGame.lobbyTimeoutJob);
+            }
           }
-        }
-      );
-    });
+        );
+      });
+    }
+    exists();
 
     it('jobs exist', function() {
       return Promise.when(game.jobs.map(
@@ -2091,19 +2095,15 @@ describe("cleanup", function() {
     });
 
 
+    // Use leaveGame with all players to destroy the game
 
+    makeTurn("Alice", game, "finish", turnNumber++);
+    exists("after finishing turn");
 
+    leaveGame("Alice", game)
+    exists("after Alice leaves");
 
-    it("gets destroyed", function() {
-      return parseCall({ useMasterKey: true }, "destroyGame", {
-        gameId: game.id
-      }).then(
-        function(entity) {
-          var result = entityResult(entity);
-          result.destroyed.should.equal(true);
-        }
-      );
-    });
+    leaveGame("Bob", game)
 
 
 
