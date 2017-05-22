@@ -890,7 +890,27 @@ function createConfigFromRequest(req) {
         }, this);
 
         config.set("slots", slots);
-        
+
+        var contactQuery = new Query(Contact);
+        return contactQuery
+          .containedIn("user", users)
+          .equalTo("contact", req.user)
+          .equalTo("blocked", true)
+          .include("user")
+          .find()
+      }
+    ).then(
+      function(blockers) {
+        if (blockers && blockers.length > 0) {
+          return Promise.reject(new CodedError(constants.t.GAME_INVITE_BLOCKED, {
+            blockerNames: blockers.map(
+              function(blocker) {
+                return blocker.get("user").get("displayName");
+              }
+            ).join(", "),
+            blockers: blockers
+          }))
+        }
         return config.save();
       }
     );
@@ -1481,6 +1501,7 @@ Parse.Cloud.beforeSave(Contact, function(req, res) {
   query
     .equalTo("user", contact.get("user"))
     .equalTo("contact", contact.get("contact"))
+    .equalTo("blocked", contact.get("blocked"))
     .first()
     .then(
       function(existing) {
@@ -1696,15 +1717,24 @@ Parse.Cloud.define("addFriend", function(req, res) {
         return contactQuery
           .equalTo("user", user)
           .equalTo("contact", contactUser)
+          .include("user")
+          .include("contact")
           .first()
       }
     ).then(
       function(contact) {
-        if (contact) return Promise.reject(new CodedError(constants.t.CONTACT_EXISTS));
+        if (contact) {
+          if (contact.get("blocked")) {
+            contact.set("blocked", false);
+            return contact.save();
+          }
+          return Promise.reject(new CodedError(constants.t.CONTACT_EXISTS));
+        }
         
         contact = new Contact();
         contact.set("user", user);
         contact.set("contact", contactUser);
+        contact.set("blocked", false);
         return contact.save();
       }
     ).then(
@@ -1715,6 +1745,45 @@ Parse.Cloud.define("addFriend", function(req, res) {
       },
       respondError(res)
     )
+});
+
+Parse.Cloud.define("blockFriend", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+
+  var contactName = String(req.params.displayName);
+  
+  var userQuery = new Query(Parse.User);
+  return userQuery
+    .equalTo("displayName", contactName)
+    .first()
+    .then(
+      function(cu) {
+        contactUser = cu;
+        if (!contactUser) return Promise.reject(new CodedError(constants.t.USER_NOT_FOUND))
+        
+        var contactQuery = new Query(Contact);
+        return contactQuery
+          .equalTo("user", user)
+          .equalTo("contact", contactUser)
+          .first()
+      }
+    ).then(
+      function(contact) {
+        if (!contact) {
+          contact = new Contact();
+          contact.set("user", user);
+          contact.set("contact", contactUser);
+        }
+        contact.set("blocked", true);
+        return contact.save();
+      }
+    ).then(
+      function() {
+        respond(res, constants.t.CONTACT_BLOCKED, {});
+      },
+      respondError(res)
+    );
 });
 
 Parse.Cloud.define("deleteFriend", function(req, res) {

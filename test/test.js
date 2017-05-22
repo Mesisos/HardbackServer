@@ -1626,14 +1626,16 @@ describe('game flow', function() {
 describe("contacts", function() {
   before(getUserSessions);
 
-  it("should remove contacts first", function() {
-    return parseCall({ useMasterKey: true }, "purgeContacts", {}).then(
-      function(result) {
-        result.should.have.property("result");
-        should.equal(result.result.purged, true);
-      }
-    );
-  });
+  function removeContacts() {
+    it("should remove contacts first", function() {
+      return parseCall({ useMasterKey: true }, "purgeContacts", {}).then(
+        function(result) {
+          result.should.have.property("result");
+          should.equal(result.result.purged, true);
+        }
+      );
+    });
+  }
 
   function contactCheck(name, desc, include, exclude, done) {
     var nobody = !include && !exclude;
@@ -1709,60 +1711,140 @@ describe("contacts", function() {
     });
   }
 
-  contactCheck("Alice");
-  contactCheck("Bob");
-  contactCheck("Carol");
-  contactCheck("Dan");
+  function blockContact(name, contactName, desc) {
+    if (!desc) {
+      desc = name + ' blocks ' + contactName;
+    }
+    it(desc, function() {
+      return parseCall(name, "blockFriend", {
+        displayName: contactName
+      }).then(
+        function(entity) {
+          entityResult(entity, constants.t.CONTACT_BLOCKED);
+        }
+      );
+    });
+  }
 
-  var game = {};
+  describe("basic", function() {
+    removeContacts();
 
-  it('creates a game and gets the game id with Alice', function() {
-    return parseCall("Alice", "createGame", {
-      "slots": [
-        { "type": "creator" },
-        { "type": "open" },
-        { "type": "none" },
-        { "type": "open" },
-      ],
-      "fameCards": { "The Chinatown Connection": 3 },
-      "turnMaxSec": 60
-    }).then(
-      function(entity) {
-        game.id = entityGameId(entity);
-      }
-    );
-  });
+    contactCheck("Alice");
+    contactCheck("Bob");
+    contactCheck("Carol");
+    contactCheck("Dan");
 
-  joinGame("Bob", game, 'has Bob join game');
-  joinGame("Carol", game, 'has Carol join game');
-  
-  contactCheck("Alice");
-  contactCheck("Bob");
-  contactCheck("Carol");
-  contactCheck("Dan");
+    var game = {};
 
-  addContact("Alice", "Carry");
-  contactCheck("Alice", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
-  contactCheck("Carol");
+    it('creates a game and gets the game id with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        "slots": [
+          { "type": "creator" },
+          { "type": "open" },
+          { "type": "none" },
+          { "type": "open" },
+        ],
+        "fameCards": { "The Chinatown Connection": 3 },
+        "turnMaxSec": 60
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+        }
+      );
+    });
 
-  addContact("Bob", "Carry");
-  contactCheck("Alice", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
-  contactCheck("Bob", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
-  contactCheck("Carol");
+    joinGame("Bob", game, 'has Bob join game');
+    joinGame("Carol", game, 'has Carol join game');
+    
+    contactCheck("Alice");
+    contactCheck("Bob");
+    contactCheck("Carol");
+    contactCheck("Dan");
 
-  addContact("Carol", "Bobzor");
-  contactCheck("Alice", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
-  contactCheck("Bob", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
-  contactCheck("Carol", null, ["Bobzor"], ["Ally", "Carol", "Dan the Man"]);
-  contactCheck("Dan");
+    addContact("Alice", "Carry");
+    contactCheck("Alice", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
+    contactCheck("Carol");
 
-  addContact("Carol", "Dan the Man");
-  contactCheck("Carol", null, ["Bobzor", "Dan the Man"], ["Ally", "Carol"]);
-  contactCheck("Dan");
+    addContact("Bob", "Carry");
+    contactCheck("Alice", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
+    contactCheck("Bob", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
+    contactCheck("Carol");
 
-  deleteContact("Carol", "Bobzor");
-  contactCheck("Carol", null, ["Dan the Man"], ["Bobzor", "Ally", "Carol"]);
-  contactCheck("Dan");
+    addContact("Carol", "Bobzor");
+    contactCheck("Alice", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
+    contactCheck("Bob", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
+    contactCheck("Carol", null, ["Bobzor"], ["Ally", "Carol", "Dan the Man"]);
+    contactCheck("Dan");
+
+    addContact("Carol", "Dan the Man");
+    contactCheck("Carol", null, ["Bobzor", "Dan the Man"], ["Ally", "Carol"]);
+    contactCheck("Dan");
+
+    deleteContact("Carol", "Bobzor");
+    contactCheck("Carol", null, ["Dan the Man"], ["Bobzor", "Ally", "Carol"]);
+    contactCheck("Dan");
+  })
+
+  describe("blocking", function() {
+
+    var game = {};
+
+    function createGame(expected) {
+      it('creates a game and gets the game id with Alice', function() {
+        return parseCall("Alice", "createGame", {
+          "slots": [
+            { "type": "creator" },
+            { "type": "invite", "displayName": "Bobzor" },
+            { "type": "none" },
+            { "type": "open" },
+          ],
+          "fameCards": {},
+          "turnMaxSec": 60
+        }).then(
+          function(entity) {
+            if (expected.id > 1000) {
+              entityError(entity, expected);
+            } else {
+              entityResult(entity, expected);
+            }
+          }
+        );
+      });
+    }
+
+    describe("stranger", function() {
+      removeContacts();
+      createGame(constants.t.GAME_CREATED);
+      contactCheck("Alice");
+      contactCheck("Bob");
+
+      blockContact("Bob", "Ally");
+      createGame(constants.t.GAME_INVITE_BLOCKED);
+
+      addContact("Bob", "Ally")
+      createGame(constants.t.GAME_CREATED);
+    })
+    
+    describe("friend", function() {
+      removeContacts();
+      createGame(constants.t.GAME_CREATED);
+      contactCheck("Alice");
+      contactCheck("Bob");
+
+      addContact("Bob", "Ally")
+      createGame(constants.t.GAME_CREATED);
+
+      blockContact("Bob", "Ally");
+      createGame(constants.t.GAME_INVITE_BLOCKED);
+
+      addContact("Bob", "Ally")
+      createGame(constants.t.GAME_CREATED);
+    })
+
+
+  })
+
+
     
 });
 

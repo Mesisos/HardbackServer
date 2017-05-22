@@ -190,6 +190,7 @@ module.exports = Object.freeze({
     CONTACT_LIST: { id: 400 },
     CONTACT_DELETED: { id: 401 },
     CONTACT_ADDED: { id: 402 },
+    CONTACT_BLOCKED: { id: 403 },
 
 
 
@@ -238,6 +239,9 @@ module.exports = Object.freeze({
     },
     GAME_INVALID_CONFIG: { id: 1110, m:
       "Invalid game configuration: {{reason}}"
+    },
+    GAME_INVITE_BLOCKED: { id: 1111, m:
+      "Blocked from inviting {{blockerNames}}"
     },
 
     PLAYER_ALREADY_IN_GAME: { id: 1200, m: 

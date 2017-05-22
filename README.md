@@ -598,6 +598,24 @@ List all the games the logged-in user is currently participating in.
 ```
 
 
+## `blockFriend`
+Block a user from inviting the calling user to games. Unblock by calling
+`addFriend` again. Creates a contact with `blocked: true` if it doesn't
+exist yet.
+### Request
+```
+{
+  "displayName": "name"
+}
+```
+### Response
+```
+{
+  "code": CONTACT_BLOCKED / USER_NOT_FOUND
+}
+```
+
+
 ## `deleteFriend`
 ### Request
 ```
