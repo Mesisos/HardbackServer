@@ -59,7 +59,7 @@ package
                 trace("Timed out");
             };
 
-            var username = "Alice";
+            var username = "alice@example.com";
 
             trace("Parse active: " + Parse.isActive());
             if(Parse.isActive())
@@ -104,7 +104,7 @@ package
                 {
                     var responseJSON:JSON = JSON.parse(response.toString());
                     printGameResponse(responseJSON.getValue("result") as JSON);
-                    loginUser("Bob", "p", joinGame);
+                    loginUser("bob@example.com", "p", joinGame);
                 },
                 function(response:ByteArray)
                 {

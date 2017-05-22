@@ -160,7 +160,9 @@ module.exports = Object.freeze({
     GAME_JOINED: { id: 103 },
     GAME_LEFT: { id: 104 },
 
-    GAME_INVITE: { id: 105 },
+    GAME_INVITE: { id: 105, m:
+      "{{invite.inviter.user.displayName}} invited you to a game!"
+    },
     GAME_LIST: { id: 106 },
 
     USER_SAVED: { id: 107 },

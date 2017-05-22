@@ -100,12 +100,6 @@ var parseObjectConfig = {
       return game;
     }
   },
-  "Invite": {
-    filter: [
-      "**",
-      "-inviter"
-    ]
-  },
   "Player": {
     filter: [
       "**",
@@ -883,9 +877,7 @@ function createConfigFromRequest(req) {
         users.forEach(function(user) {
           // Duplicate check
           if (userIds[user.id]) {
-            return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG, {
-              reason: "Duplicate slot users."
-            }));
+            return;
           }
           userIds[user.id] = true;
 
@@ -894,11 +886,10 @@ function createConfigFromRequest(req) {
             return dn.name == user.get("displayName");
           });
           if (dn) dn.slot.userId = user.id;
+
         }, this);
 
         config.set("slots", slots);
-
-        // TODO push notifications for invites
         
         return config.save();
       }
@@ -949,7 +940,35 @@ function createGameFromConfig(user, config) {
     function(g) {
       game = g;
       gameInfo.game = game;
-      return Promise.resolve(gameInfo);
+
+      var inviter = gameInfo.player;
+      var invites = config.get("slots").filter(
+        function(slot) {
+          return slot.type == SlotType.Invite;
+        }
+      )
+
+      // Send push notifications to all invitees
+      if (invites.length > 0) {
+        return getInvite(gameInfo.player).then(
+          function(invite) {
+            var inviteUsers = invites.map(function(inviteSlot) {
+              var invitee = new Parse.User();
+              invitee.id = inviteSlot.userId;;
+              return invitee;
+            });
+            return notifyUsers(inviteUsers, constants.t.GAME_INVITE, {
+              "invite": invite,
+              "link": getInviteLink(invite)
+            });
+          }
+        )
+      }
+      return null;
+    }
+  ).then(
+    function() {
+      return gameInfo;
     },
     function(error) {
       // Try cleaning up before failing
@@ -1065,11 +1084,7 @@ function sendPush(installationQuery, message, data) {
   }, { useMasterKey: true });
 }
 
-function notifyPlayers(players, message, data) {
-  users = players.map(function(player) {
-    return player.get("user");
-  });
-
+function notifyUsers(users, message, data) {
   var sessionQuery = new Query(Parse.Session);
   sessionQuery
     .containedIn("user", users);
@@ -1078,6 +1093,13 @@ function notifyPlayers(players, message, data) {
   installationQuery.matchesKeyInQuery("installationId", "installationId", sessionQuery);
 
   return sendPush(installationQuery, message, data);
+}
+
+function notifyPlayers(players, message, data) {
+  users = players.map(function(player) {
+    return player.get("user");
+  });
+  notifyUsers(users, message, data);
 }
 
 function notifyGame(game, message, data) {
