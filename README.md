@@ -414,6 +414,33 @@ Find games open to the public, i.e. with at least one open-type slot.
 ```
 
 
+## `listInvites`
+List games with an invite slot for the calling user.
+### Request
+```
+{
+  // How many games to return sorted by most recent first
+  "limit": integer (default 20, min 1, max 100)
+  // How many games to skip (for pagination)
+  "skip": integer (default 0)
+}
+```
+### Response
+```
+{
+  "code": GAME_LIST,
+
+  // Game objects
+  "games": [
+    {
+      // See `listGames` for the properties.
+      ...
+    }
+  ]
+}
+```
+
+
 ## `listGames`
 List all the games the logged-in user is currently participating in.
 ### Request
