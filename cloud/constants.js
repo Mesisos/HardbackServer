@@ -52,6 +52,15 @@ module.exports = Object.freeze({
     sort: [ { name: "createdAt", dir: "ascending" } ]
   },
 
+  LIST_INVITES_PAGING: {
+    limit: {
+      default: 20,
+      min: 1,
+      max: 100
+    },
+    sort: [ { name: "createdAt", dir: "descending" } ]
+  },
+
   TURN_PAGING: {
     limit: {
       default: 3,

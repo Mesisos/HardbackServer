@@ -446,7 +446,7 @@ describe('public', function() {
 describe('game flow', function() {
   before(getUserSessions);
 
-  describe('invites', function() {
+  describe('invite', function() {
 
     var game = {};
 
@@ -529,6 +529,77 @@ describe('game flow', function() {
         slots[3].type.should.equal("open");
       }
     );
+
+    describe("list", function() {
+
+      var gameByName = {};
+
+      it('creates an Alice game inviting Bob and Carol', function() {
+        return parseCall("Alice", "createGame", {
+          "slots": [
+            { type: "creator" },
+            { type: "open" },
+            { type: "invite", displayName: "Bobzor" },
+            { type: "invite", displayName: "Carry" },
+          ],
+          "turnMaxSec": 60
+        }).then(
+          function(entity) {
+            gameByName.Alice = { id: entityGameId(entity) }
+          }
+        );
+      });
+
+      it('creates a Bob game inviting Carol', function() {
+        return parseCall("Alice", "createGame", {
+          "slots": [
+            { type: "creator" },
+            { type: "open" },
+            { type: "invite", displayName: "Carry" },
+          ],
+          "turnMaxSec": 60
+        }).then(
+          function(entity) {
+            gameByName.Bob = { id: entityGameId(entity) }
+          }
+        );
+      });
+
+      it('contains Alice\'s game for Bob', function() {
+        return parseCall("Bob", "listInvites", {
+          limit: 1
+        }).then(
+          function(entity) {
+            var result = entityResult(entity);
+            result.should.have.property("games");
+            
+            var games = result.games;
+            games.should.have.length(1);
+
+            var game = games[0];
+            game.objectId.should.equal(gameByName.Alice.id);
+          }
+        )
+      })
+
+      it('contains Bob\'s and Alice\'s game for Carol', function() {
+        return parseCall("Carol", "listInvites", {
+          limit: 2
+        }).then(
+          function(entity) {
+            var result = entityResult(entity);
+            result.should.have.property("games");
+            
+            var games = result.games;
+            games.should.have.length(2);
+
+            games[0].objectId.should.equal(gameByName.Bob.id);
+            games[1].objectId.should.equal(gameByName.Alice.id);
+          }
+        )
+      })
+
+    })
 
   })
 
@@ -1504,13 +1575,12 @@ describe('game flow', function() {
 
     leaveGame("Carol", game);
 
-    it("should end the game after the last player leaves", function() {
+    it("should destroy the game after the last player leaves", function() {
       return parseCall({ useMasterKey: true }, "debugGame", {
         gameId: game.id
       }).then(
         function(entity) {
-          var result = entityResult(entity);
-          result.state.should.equal(GameState.Ended);
+          entityError(entity, constants.t.GAME_NOT_FOUND);
         }
       );
     });

@@ -717,17 +717,10 @@ function addPaging(query, req, config) {
   return { limit: limit, skip: skip };
 }
 
-Parse.Cloud.define("findGames", function(req, res) {
-  var user = req.user;
-  if (errorOnInvalidUser(user, res)) return;
-
-  var configQuery = new Query(Config);
-  configQuery
-    .equalTo("isRandom", true);
-  
+function respondWithGameList(req, res, user, configQuery, pagingConfig) {
   var games;
   var query = new Query(Game);
-  addPaging(query, req, constants.FIND_GAME_PAGING);
+  addPaging(query, req, pagingConfig);
   query
     .matchesQuery("config", configQuery)
     .equalTo("state", GameState.Lobby)
@@ -756,13 +749,33 @@ Parse.Cloud.define("findGames", function(req, res) {
           "games": games
         });
       },
-        
-      
       respondError(res)
     );
+}
 
+
+
+Parse.Cloud.define("findGames", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+
+  var configQuery = new Query(Config);
+  configQuery
+    .equalTo("isRandom", true);
+  
+  respondWithGameList(req, res, user, configQuery, constants.FIND_GAME_PAGING);
 });
 
+Parse.Cloud.define("listInvites", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+  
+  var configQuery = new Query(Config);
+  configQuery
+    .equalTo("slots.userId", user.id);
+  
+  respondWithGameList(req, res, user, configQuery, constants.LIST_INVITES_PAGING);
+});
 
 
 
