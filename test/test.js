@@ -1626,107 +1626,144 @@ describe('game flow', function() {
 describe("contacts", function() {
   before(getUserSessions);
 
-  describe("mutual addition", function() {
-    it("should remove contacts first", function() {
-      return parseCall({ useMasterKey: true }, "purgeContacts", {}).then(
-        function(result) {
-          result.should.have.property("result");
-          should.equal(result.result.purged, true);
-        }
-      );
-    });
-
-    function contactCheck(name, desc, include, exclude, done) {
-      var nobody = !include && !exclude;
-      if (!desc) {
-        desc = nobody ?
-          'returns nobody for ' + name :
-          'returns ' + 
-            include.join(" and ") +
-            ' and not ' + exclude.join(" and ") +
-            ' as friends of ' + name;
+  it("should remove contacts first", function() {
+    return parseCall({ useMasterKey: true }, "purgeContacts", {}).then(
+      function(result) {
+        result.should.have.property("result");
+        should.equal(result.result.purged, true);
       }
-      it(desc, function() {
-        return parseCall(name, "listFriends", {
-        }).then(
-          function(entity) {
-            var result = entityResult(entity, constants.t.CONTACT_LIST);
-            result.should.have.property("contacts");
-            var contacts = result.contacts;
-            if (nobody) {
-              contacts.should.have.length(0);
-            } else {
+    );
+  });
 
-              include.forEach(function(contactName) {
-                should.exist(contacts.find(function(contact) {
-                  return contact.displayName == contactName;
-                }));
-              }, this);
-
-              exclude.forEach(function(contactName) {
-                should.not.exist(contacts.find(function(contact) {
-                  return contact.displayName == contactName;
-                }));
-              }, this);
-              
-            }
-
-            if (done) done(contacts);
-          }
-        );
-      });
+  function contactCheck(name, desc, include, exclude, done) {
+    var nobody = !include && !exclude;
+    if (!desc) {
+      desc = nobody ?
+        'returns nobody for ' + name :
+        'returns ' + 
+          include.join(" and ") +
+          ' and not ' + exclude.join(" and ") +
+          ' as friends of ' + name;
     }
-
-    contactCheck("Alice");
-    contactCheck("Bob");
-    contactCheck("Carol");
-    contactCheck("Dan");
-
-    var game = {};
-
-    it('creates a game and gets the game id with Alice', function() {
-      return parseCall("Alice", "createGame", {
-        "slots": [
-          { "type": "creator" },
-          { "type": "open" },
-          { "type": "none" },
-          { "type": "open" },
-        ],
-        "fameCards": { "The Chinatown Connection": 3 },
-        "turnMaxSec": 60
+    it(desc, function() {
+      return parseCall(name, "listFriends", {
       }).then(
         function(entity) {
-          game.id = entityGameId(entity);
+          var result = entityResult(entity, constants.t.CONTACT_LIST);
+          result.should.have.property("contacts");
+          var contacts = result.contacts;
+          if (nobody) {
+            contacts.should.have.length(0);
+          } else {
+
+            include.forEach(function(contactName) {
+              should.exist(contacts.find(function(contact) {
+                return contact.displayName == contactName;
+              }));
+            }, this);
+
+            exclude.forEach(function(contactName) {
+              should.not.exist(contacts.find(function(contact) {
+                return contact.displayName == contactName;
+              }));
+            }, this);
+            
+          }
+
+          if (done) done(contacts);
         }
       );
     });
+  }
 
-    joinGame("Bob", game, 'has Bob join game');
-    joinGame("Carol", game, 'has Carol join game');
-
-    var bobId;
-    contactCheck("Carol", null, ["Ally", "Bobzor"], ["Carry", "Dan the Man"], function(contacts) {
-      bobId = contacts.find(function(contact) { return contact.displayName == "Bobzor"; }).objectId;
+  function addContact(name, contactName, desc) {
+    if (!desc) {
+      desc = name + ' adds ' + contactName + ' as a friend';
+    }
+    it(desc, function() {
+      return parseCall(name, "addFriend", {
+        displayName: contactName
+      }).then(
+        function(entity) {
+          var result = entityResult(entity, constants.t.CONTACT_ADDED);
+          result.should.have.property("contact");
+          var contact = result.contact;
+          contact.contact.displayName.should.equal(contactName);
+        }
+      );
     });
+  }
 
-    contactCheck("Bob", null, ["Ally", "Carry"], ["Bobzor", "Dan the Man"]);
-    contactCheck("Alice", null, ["Bobzor", "Carry"], ["Ally", "Dan the Man"]);
-
-    contactCheck("Dan", "still returns nobody for Dan :(");
-
-    it('makes Carol delete Bob as friend', function() {
-      return parseCall("Carol", "deleteFriend", {
-        userId: bobId
+  function deleteContact(name, contactName, desc) {
+    if (!desc) {
+      desc = name + ' removes ' + contactName + ' from friends';
+    }
+    it(desc, function() {
+      return parseCall(name, "deleteFriend", {
+        displayName: contactName
       }).then(
         function(entity) {
           entityResult(entity, constants.t.CONTACT_DELETED);
         }
       );
     });
-    
-    contactCheck("Carol", "should make sure Carry hates Bob now", ["Ally"], ["Bobzor", "Carry", "Dan the Man"]);
+  }
 
+  contactCheck("Alice");
+  contactCheck("Bob");
+  contactCheck("Carol");
+  contactCheck("Dan");
+
+  var game = {};
+
+  it('creates a game and gets the game id with Alice', function() {
+    return parseCall("Alice", "createGame", {
+      "slots": [
+        { "type": "creator" },
+        { "type": "open" },
+        { "type": "none" },
+        { "type": "open" },
+      ],
+      "fameCards": { "The Chinatown Connection": 3 },
+      "turnMaxSec": 60
+    }).then(
+      function(entity) {
+        game.id = entityGameId(entity);
+      }
+    );
   });
+
+  joinGame("Bob", game, 'has Bob join game');
+  joinGame("Carol", game, 'has Carol join game');
+  
+  contactCheck("Alice");
+  contactCheck("Bob");
+  contactCheck("Carol");
+  contactCheck("Dan");
+
+  addContact("Alice", "Carry");
+  contactCheck("Alice", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
+  contactCheck("Carol");
+
+  addContact("Bob", "Carry");
+  contactCheck("Alice", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
+  contactCheck("Bob", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
+  contactCheck("Carol");
+
+  addContact("Carol", "Bobzor");
+  contactCheck("Alice", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
+  contactCheck("Bob", null, ["Carry"], ["Ally", "Bobzor", "Dan the Man"]);
+  contactCheck("Carol", null, ["Bobzor"], ["Ally", "Carol", "Dan the Man"]);
+  contactCheck("Dan");
+
+  addContact("Carol", "Dan the Man");
+  contactCheck("Carol", null, ["Bobzor", "Dan the Man"], ["Ally", "Carol"]);
+  contactCheck("Dan");
+
+  deleteContact("Carol", "Bobzor");
+  contactCheck("Carol", null, ["Dan the Man"], ["Bobzor", "Ally", "Carol"]);
+  contactCheck("Dan");
+    
 });
 
 

@@ -566,17 +566,49 @@ List all the games the logged-in user is currently participating in.
 ```
 
 
-## `deleteFriend`
+## `addFriend`
 ### Request
 ```
 {
-  "userId": "id"
+  "displayName": "name"
 }
 ```
 ### Response
 ```
 {
-  "code": CONTACT_DELETED / CONTACT_NOT_FOUND
+  "code": CONTACT_ADDED / USER_NOT_FOUND | CONTACT_NOT_FOUND | CONTACT_EXISTS,
+  "contact": {
+
+    // The user that added the contact
+    "user": {
+      "displayName": "Carry",
+      "objectId": "ElX0nxSAy7",
+      ...
+    },
+
+    // The contact that was added
+    "contact": {
+      "displayName": "Ally",
+      "objectId": "etSAhagpLp",
+      ...
+    }
+
+  },
+}
+```
+
+
+## `deleteFriend`
+### Request
+```
+{
+  "displayName": "name"
+}
+```
+### Response
+```
+{
+  "code": CONTACT_DELETED / USER_NOT_FOUND | CONTACT_NOT_FOUND
 }
 ```
 

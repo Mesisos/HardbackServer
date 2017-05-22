@@ -189,6 +189,7 @@ module.exports = Object.freeze({
 
     CONTACT_LIST: { id: 400 },
     CONTACT_DELETED: { id: 401 },
+    CONTACT_ADDED: { id: 402 },
 
 
 
@@ -262,6 +263,9 @@ module.exports = Object.freeze({
       "Game turn save string invalid."
     },
 
+    CONTACT_EXISTS: { id: 1400, m:
+      "Contact already exists."
+    },
     CONTACT_NOT_FOUND: { id: 1404, m:
       "Contact not found."
     }

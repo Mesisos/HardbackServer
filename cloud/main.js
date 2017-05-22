@@ -1216,11 +1216,6 @@ function joinGame(game, user) {
   ).then(
     function(p) {
       player = p;
-      if (initial) return Promise.resolve();
-      return addContacts(game, player);
-    }
-  ).then(
-    function() {
       if (initial) return Promise.resolve(1);
       return getPlayerCount(game);
     }
@@ -1479,56 +1474,6 @@ Parse.Cloud.define("declineInvite", function(req, res) {
 
 });
 
-
-
-function addContacts(game, player) {
-  var user = player.get("user");
-
-  var playerQuery = new Query(Player);
-  return playerQuery
-    .equalTo("game", game)
-    .find()
-    .then(
-      function(players) {
-        var gameUsers = players.map(function(player) {
-          return player.get("user");
-        });
-
-        var contactPromises = [];
-        gameUsers.forEach(function(gameUser) {
-          var contact;
-          
-          if (user.id == gameUser.id) return;
-
-          // Add user in game as contact of player
-          contact = new Contact();
-          contact.set("user", user);
-          contact.set("contact", gameUser);
-          contactPromises.push(contact.save());
-
-          // Add player as contact of user in game
-          contact = new Contact();
-          contact.set("user", gameUser);
-          contact.set("contact", user);
-          contactPromises.push(contact.save());
-        }, this);
-
-        return Promise.when(contactPromises);
-      }
-    ).then(
-      function(contacts) {
-        return Promise.resolve();
-      },
-      function(errors) {
-        var actualErrors = errors.filter(function(error) {
-          return typeof(error.message) != 'object' || error.message.exists !== true;
-        });
-        if (actualErrors.length > 0) return Promise.reject(actualErrors);
-        return Promise.resolve();
-      }
-    );
-}
-
 Parse.Cloud.beforeSave(Contact, function(req, res) {
   var contact = req.object;
 
@@ -1731,20 +1676,69 @@ Parse.Cloud.define("listFriends", function(req, res) {
     );
 });
 
+Parse.Cloud.define("addFriend", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+
+  var contactName = String(req.params.displayName);
+  var contactUser;
+
+  var userQuery = new Query(Parse.User);
+  return userQuery
+    .equalTo("displayName", contactName)
+    .first()
+    .then(
+      function(cu) {
+        contactUser = cu;
+        if (!contactUser) return Promise.reject(new CodedError(constants.t.USER_NOT_FOUND))
+        
+        var contactQuery = new Query(Contact);
+        return contactQuery
+          .equalTo("user", user)
+          .equalTo("contact", contactUser)
+          .first()
+      }
+    ).then(
+      function(contact) {
+        if (contact) return Promise.reject(new CodedError(constants.t.CONTACT_EXISTS));
+        
+        contact = new Contact();
+        contact.set("user", user);
+        contact.set("contact", contactUser);
+        return contact.save();
+      }
+    ).then(
+      function(contact) {
+        respond(res, constants.t.CONTACT_ADDED, {
+          contact: contact
+        })
+      },
+      respondError(res)
+    )
+});
+
 Parse.Cloud.define("deleteFriend", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
 
-  var contactId = String(req.params.userId);
-  var contact = new Parse.User();
-  contact.id = contactId;
-
-  var contactQuery = new Query(Contact);
-  contactQuery
-    .equalTo("user", user)
-    .equalTo("contact", contact)
+  var contactName = String(req.params.displayName);
+  
+  var userQuery = new Query(Parse.User);
+  return userQuery
+    .equalTo("displayName", contactName)
     .first()
     .then(
+      function(cu) {
+        contactUser = cu;
+        if (!contactUser) return Promise.reject(new CodedError(constants.t.USER_NOT_FOUND))
+        
+        var contactQuery = new Query(Contact);
+        return contactQuery
+          .equalTo("user", user)
+          .equalTo("contact", contactUser)
+          .first()
+      }
+    ).then(
       function(contact) {
         if (!contact) return Promise.reject(new CodedError(constants.t.CONTACT_NOT_FOUND));
         return contact.destroy();
