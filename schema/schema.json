@@ -144,7 +144,8 @@
 				"*": true
 			}
 		}
-	}
+	},
+	"blocked": "boolean"
 }
 {
 	"_id": "Invite",
@@ -185,4 +186,13 @@
 	"parseVersion": "string",
 	"UniqueId": "string",
 	"userId": "string"
+}
+{
+	"_id": "_Role",
+	"objectId": "string",
+	"updatedAt": "date",
+	"createdAt": "date",
+	"name": "string",
+	"users": "relation\u003c_User\u003e",
+	"roles": "relation\u003c_Role\u003e"
 }
