@@ -131,8 +131,8 @@ if (process.env.TESTING === "true") {
         }
       );
   });
-
-  Parse.Cloud.define("destroyGame", function(req, res) {
+  
+   Parse.Cloud.define("destroyGame", function(req, res) {
     if (!req.master) { res.error("unauthorized"); return; }
     var query = new Parse.Query(Parse.Object.extend("Game"));
     query
@@ -216,6 +216,42 @@ if (process.env.TESTING === "true") {
 
   });
 
+  Parse.Cloud.define("purgeGamesABCD", function(req, res) {
+    if (!req.master) { res.error("unauthorized"); return; }
+
+    var userQuery = new Parse.Query(Parse.Object.extend("User"));
+    userQuery
+      .containedIn("username", [
+        "alice@example.com",
+        "bob@example.com",
+        "carol@example.com",
+        "dan@example.com"
+      ])
+    
+    var query = new Parse.Query(Parse.Object.extend("Game"));
+    query
+      .matchesQuery("creator", userQuery)
+      .limit(10000)
+      .find({ useMasterKey: true })
+      .then(
+        function(games) {
+          console.log(games.length)
+          if (games) {
+            return Parse.Object.destroyAll(games);
+          } else {
+            return Parse.Promise.reject("No games found.");
+          }
+        }
+      ).then(
+        function() {
+          res.success({ purged: true });
+        },
+        function(error) {
+          res.error(error);
+        }
+      );
+
+  });
 
 
 

@@ -613,9 +613,36 @@ Parse.Cloud.define("checkNameFree", function(req, res) {
 
 
 Parse.Cloud.define("createGame", function(req, res) {
-  if (errorOnInvalidUser(req.user, res)) return;
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
 
-  createConfigFromRequest(req).then(
+  var gamesTotal = new Query(Game)
+    .equalTo("creator", user)
+    .count()
+  
+  var recentCutoff = new Date(Date.now() - constants.GAME_LIMIT_RECENT_TIMEOUT*1000);
+
+  var gamesRecently = new Query(Game)
+    .equalTo("creator", user)
+    .greaterThan("createdAt", recentCutoff)
+    .count()
+
+  Promise.when(
+    gamesTotal,
+    gamesRecently
+  ).then(
+    function(total, recently) {
+      if (total >= constants.GAME_LIMIT_TOTAL) {
+        return Promise.reject(new CodedError(constants.t.GAME_QUOTA_EXCEEDED));
+      }
+
+      if (recently >= constants.GAME_LIMIT_RECENT) {
+        return Promise.reject(new CodedError(constants.t.GAME_QUOTA_EXCEEDED));
+      }
+
+      return createConfigFromRequest(req);
+    }
+  ).then(
     function(config) {
       return createGameFromConfig(req.user, config);
     }
@@ -1010,7 +1037,7 @@ Parse.Cloud.beforeDelete(Game, function(req, res) {
   var game = req.object;
 
   var config = game.get("config");
-  var configPromise = config.destroy();
+  var configPromise = config ? config.destroy() : Promise.resolve();
 
   var players = new Query(Player);
   var playerPromise = players
@@ -1058,7 +1085,7 @@ Parse.Cloud.beforeDelete(Game, function(req, res) {
       res.success();
     },
     function(error) {
-      res.error(error);
+      res.success(error);
     }
   );
 

@@ -1,3 +1,5 @@
+var testTimeouts = process.env.TESTING_TIMEOUTS == "true";
+
 module.exports = Object.freeze({
 
   INVITE_URL_PREFIX: process.env.SERVER_ROOT + "/join/",
@@ -27,7 +29,11 @@ module.exports = Object.freeze({
   GAME_MAX_SLOTS: 16,
 
   START_GAME_MANUAL_TIMEOUT: 10,
-  START_GAME_AUTO_TIMEOUT: 2*24*60*60,
+  START_GAME_AUTO_TIMEOUT: testTimeouts ? 30 : 2*24*60*60,
+
+  GAME_LIMIT_TOTAL: 20,
+  GAME_LIMIT_RECENT: 10,
+  GAME_LIMIT_RECENT_TIMEOUT: testTimeouts ? 5 : 60*60,
 
   GAME_ENDING_INACTIVE_ROUNDS: 2,
 
@@ -150,12 +156,14 @@ module.exports = Object.freeze({
 
     AVAILABILITY: { id:   1 },
 
-    GAME_CREATED: { id: 100 },
+    GAME_CREATED: { id: 100, m:
+      "Game {{game.objectId}} created"
+    },
     GAME_STARTED: { id: 101, m:
-      "Game {{game.objectId}} has started!"
+      "Game {{game.objectId}} has started"
     },
     GAME_ENDED: { id: 102, m:
-      "Game {{game.objectId}} has ended!",
+      "Game {{game.objectId}} has ended",
     },
     GAME_JOINED: { id: 103 },
     GAME_LEFT: { id: 104 },
@@ -242,6 +250,9 @@ module.exports = Object.freeze({
     },
     GAME_INVITE_BLOCKED: { id: 1111, m:
       "Blocked from inviting {{blockerNames}}"
+    },
+    GAME_QUOTA_EXCEEDED: { id: 1112, m:
+      "Unable to create game, exceeded quota."
     },
 
     PLAYER_ALREADY_IN_GAME: { id: 1200, m: 
