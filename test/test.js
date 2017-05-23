@@ -1621,6 +1621,68 @@ describe('game flow', function() {
 
   });
 
+  describe("two user, then solo game", function() {
+    
+    var game = {};
+
+    it('creates a game and gets the game id with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        "slots": [
+          { "type": "creator" },
+          { "type": "open" }
+        ],
+        "fameCards": {},
+        "turnMaxSec": 60
+      }).then(
+        function(entity) {
+          game.id = entityGameId(entity);
+        }
+      );
+    });
+
+    makeTurn("Alice", game, "invalid");
+    makeTurn("Bob",   game, "invalid");
+
+    joinGame("Bob", game);
+
+    var turnNumber = 0;
+
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Alice", game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    
+    getGame("Bob", game, 'should be running before Alice leaves', (function(turn, game) {
+      game.state.should.equal(GameState.Running);
+      game.turn.should.equal(turn);
+    }).bind(this, turnNumber++));
+
+    leaveGame("Alice", game, null);
+
+    getGame("Bob", game, 'should keep running after Alice leaves', (function(turn, game) {
+      game.state.should.equal(GameState.Running);
+      game.turn.should.equal(turn);
+    }).bind(this, turnNumber++));
+
+    makeTurn("Alice", game, "deny", turnNumber);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "allow", turnNumber++);
+    makeTurn("Bob",   game, "finish", turnNumber++);
+    
+    getGame("Bob", game, 'should end after finishing turn', function(game) {
+      game.state.should.equal(GameState.Ended);
+    });
+
+
+
+  });
+
 });
 
 describe("contacts", function() {
