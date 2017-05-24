@@ -9,7 +9,7 @@ var TurnType = constants.TurnType;
 var AIDifficulty = constants.AIDifficulty;
 
 var timeoutMultiplier = 2;
-var testTimeouts = false;
+var testTimeouts = process.env.TESTING_TIMEOUTS == "true";
 
 var should = require('chai').should();
 var fs = require('fs');
@@ -260,6 +260,17 @@ function leaveGame(name, game, desc, playerFunc) {
       }
     );
   });
+}
+
+function purgeGames() {
+  return parseCall({ useMasterKey: true }, "purgeGamesABCD",
+    {}
+  ).then(
+    function(result) {
+      result.should.have.property("result");
+      should.equal(result.result.purged, true);
+    }
+  );
 }
 
 function internalStartGame(name, game, desc, customFunc, delay) {
@@ -1679,11 +1690,94 @@ describe('game flow', function() {
       game.state.should.equal(GameState.Ended);
     });
 
-
-
   });
 
 });
+
+describe("quota", function() {
+  before(function() {
+    return Promise.when(
+      getUserSessions(),
+      purgeGames()
+    );
+  });
+  after(purgeGames);
+
+  describe("create game", function() {
+
+    function createGame(expected, desc) {
+      it(desc || expected.m, function() {
+        return parseCall("Alice", "createGame", {
+          "slots": [
+            { "type": "creator" },
+            { "type": "invite", "displayName": "Bobzor" },
+            { "type": "none" },
+            { "type": "open" },
+          ],
+          "fameCards": {},
+          "turnMaxSec": 60
+        }).then(
+          function(entity) {
+            if (expected.id > 1000) {
+              entityError(entity, expected);
+            } else {
+              entityResult(entity, expected);
+            }
+          }
+        );
+      });
+    }
+
+    function testRecentQuota(index) {
+      var min = index*constants.GAME_LIMIT_RECENT;
+      var max = Math.min(constants.GAME_LIMIT_TOTAL, (index + 1)*constants.GAME_LIMIT_RECENT);
+      for (var i = min; i < max; i++) {
+        createGame(constants.t.GAME_CREATED, "create game " + (i + 1));
+      }
+      createGame(constants.t.GAME_QUOTA_EXCEEDED, "should fail creating game due to recent quota");
+    }
+
+    function waitForQuota() {
+      it("wait for the quota to expire", function() {
+        var promise = new Promise();
+        setTimeout(function() {
+          promise.resolve();
+        }, constants.GAME_LIMIT_RECENT_TIMEOUT*1000);
+        return promise;
+      })
+    }
+
+    this.timeout(2000 + recencyPumps*constants.GAME_LIMIT_RECENT_TIMEOUT*1000);
+
+    purgeGames();
+
+    var recencyPumps = Math.ceil(constants.GAME_LIMIT_TOTAL / constants.GAME_LIMIT_RECENT);
+    for (var i = 0; i < recencyPumps; i++) {
+      testRecentQuota(i);
+
+      var gameNum = Math.min(constants.GAME_LIMIT_TOTAL, (i + 1)*constants.GAME_LIMIT_RECENT);
+      it("should return " + gameNum + " games", function(gameNum) {
+        return parseCall("Alice", "listGames", {
+          limit: 100
+        }).then(
+          function(entity) {
+            var result = entityResult(entity, constants.t.GAME_LIST);
+            result.should.have.property("games");
+            result.games.should.be.an("array");
+            result.games.should.have.length(gameNum);
+          }
+        );
+      }.bind(this, gameNum))
+
+      waitForQuota();
+    }
+
+    createGame(constants.t.GAME_QUOTA_EXCEEDED, "should fail creating game due to total quota");
+
+  })
+
+
+})
 
 describe("contacts", function() {
   before(getUserSessions);
