@@ -414,28 +414,29 @@ function checkDeletedJob(id) {
 describe('public', function() {
   describe('name check', function() {
 
-    it("should return false for existing name", function() {
-      return parseCall(null, "checkNameFree", {
-        displayName: "Ally"
-      }).then(
-        function(entity) {
-          var result = entityResult(entity);
-          result.available.should.equal(false);
-        }
-      );
-    });
+    function checkName(desc, name, err) {
+      it(desc, function() {
+        return parseCall(null, "checkNameFree", {
+          displayName: name
+        }).then(
+          function(entity) {
+            var result = entityResult(entity);
+            result.available.should.equal(!err);
+            if (err) {
+              result.should.have.property("reason");
+              result.reason.code.should.equal(err.id);
+            }
+          }
+        );
+      });
+    }
 
-    it("should return true for a free name", function() {
-      return parseCall(null, "checkNameFree", {
-        displayName: "ThisDisplayNameShouldRemainFree"
-      }).then(
-        function(entity) {
-          var result = entityResult(entity);
-          result.available.should.equal(true);
-        }
-      );
-    });
-
+    checkName("denies existing name", "Ally", constants.t.DISPLAY_NAME_TAKEN);
+    checkName("approves a free name", "47421dabef3b", null);
+    checkName("denies too short name", "a", constants.t.INVALID_PARAMETER);
+    checkName("denies too long name", "ThisNameIsWayTooLongAndDefinitelyGoesOverTheLimit", constants.t.INVALID_PARAMETER);
+    checkName("denies an obscene name", "shitosaur", constants.t.DISPLAY_NAME_BLACKLISTED);
+    
     it("should error on missing parameter", function() {
       return parseCall(null, "checkNameFree", {}).then(
         parseError(constants.t.INVALID_PARAMETER)

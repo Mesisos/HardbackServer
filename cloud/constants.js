@@ -214,6 +214,9 @@ module.exports = Object.freeze({
     DISPLAY_NAME_TAKEN: { id: 1005, m:
       "Display name already taken."
     },
+    DISPLAY_NAME_BLACKLISTED: { id: 1006, m:
+      "Display name blacklisted."
+    },
 
     GAME_INVALID_STATE: { id: 1100, m:
       "Game state '{{stateName}}' does not accept this operation. Supported states: {{acceptableNames}}"

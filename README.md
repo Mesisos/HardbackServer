@@ -195,6 +195,10 @@ All of the cloud functions below require you to be logged in as a user. Email ve
   "code": AVAILABILITY / INVALID_PARAMETER,
 
   "available": true|false
+  "reason": {
+    "code": / INVALID_PARAMETER | DISPLAY_NAME_BLACKLISTED | DISPLAY_NAME_TAKEN,
+    "message": string
+  }
 }
 ```
 

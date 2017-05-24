@@ -1,4 +1,4 @@
-
+var fs = require("fs");
 var util = require("util");
 var moment = require('moment');
 var constants = require('./constants.js');
@@ -223,6 +223,45 @@ function CodedError(message, context) {
 util.inherits(CodedError, Error);
 
 
+var nameBlacklist = fs.readFileSync("name-blacklist.txt", "utf8").split("\n");
+function isBlacklisted(name) {
+  var len = nameBlacklist.length;
+  var lowercase = name.toLowerCase();
+  for (var i = 0; i < len; i++) {
+    var phrase = nameBlacklist[i];
+    if (lowercase.indexOf(phrase) != -1) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function checkNameValidity(name, existingId) {
+  if (!name || 
+      typeof(name) !== "string" ||
+      name.length < constants.DISPLAY_NAME_MIN ||
+      name.length > constants.DISPLAY_NAME_MAX) {
+    return Promise.resolve(constants.t.INVALID_PARAMETER);
+  }
+
+  if (isBlacklisted(name)) {
+    return Promise.resolve(constants.t.DISPLAY_NAME_BLACKLISTED);
+  }
+  var query = new Query(Parse.User);
+  if (existingId) query.notEqualTo("objectId", existingId)
+  return query
+    .equalTo("displayName", name)
+    .first()
+    .then(
+      function(result) {
+        if (result) {
+          return constants.t.DISPLAY_NAME_TAKEN;
+        } else {
+          return null;
+        }
+      }
+    );
+}
 
 
 
@@ -599,16 +638,16 @@ Parse.Cloud.define("checkNameFree", function(req, res) {
     return;
   }
 
-  var query = new Query(Parse.User);
-  query.equalTo("displayName", name);
-  query.first().then(
-    function(result) {
+  checkNameValidity(name).then(
+    function(err) {
       respond(res, constants.t.AVAILABILITY, {
-        available: !result
+        available: !err,
+        reason: err ? new CodedError(err) : null
       });
     },
     respondError(res)
   );
+
 });
 
 
@@ -2111,19 +2150,6 @@ Parse.Cloud.beforeSave(Parse.User, function(req, res) {
 
     user.set("email", email);
 
-    var displayName = user.get("displayName");
-
-    if
-      (
-        !displayName || 
-        typeof(displayName) !== "string" ||
-        displayName.length < constants.DISPLAY_NAME_MIN ||
-        displayName.length > constants.DISPLAY_NAME_MAX
-      )
-    {
-      respondError(res, constants.t.INVALID_PARAMETER);
-      return;
-    }
     
     var avatar = user.get("avatar");
     if (typeof(avatar) == 'undefined') avatar = constants.AVATAR_DEFAULT;
@@ -2132,21 +2158,17 @@ Parse.Cloud.beforeSave(Parse.User, function(req, res) {
       return;
     }
 
-    var query = new Query(Parse.User);
-    if (user.id) query.notEqualTo("objectId", user.id)
-    query
-      .equalTo("displayName", displayName)
-      .first()
-      .then(
-        function(result) {
-          if (result) {
-            respondError(res, constants.t.DISPLAY_NAME_TAKEN)
-            return
-          }
-          res.success();
-        },
-        respondError(res)
-    );
+    var displayName = user.get("displayName");
+    checkNameValidity(displayName, user.id).then(
+      function(err) {
+        if (err) {
+          respondError(res, err);
+          return;
+        }
+        res.success();
+      },
+      respondError(res)
+    )
 });
 
 
