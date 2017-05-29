@@ -10,7 +10,6 @@ var Mustache = require("mustache");
 GameState = constants.GameState;
 PlayerState = constants.PlayerState;
 SlotType = constants.SlotType;
-TurnType = constants.TurnType;
 AIDifficulty = constants.AIDifficulty;
 
 var Promise = Parse.Promise;
@@ -33,17 +32,8 @@ var parseObjectConfig = {
   },
   "Turn": {
     filter: [
-      "**",
-      "-lastValid"
-    ],
-    pre: function(turn, context) {
-      turn.type = TurnType.Player;
-      if (turn.save === null && turn.lastValid) {
-        turn.save = turn.lastValid.save;
-        turn.type = TurnType.Timeout;
-      }
-      return turn;
-    }
+      "**"
+    ]
   },
   "Game": {
     filter: [
@@ -343,6 +333,8 @@ jobs.process('game turn timeout', 10, function(job, done) {
   new Query(Player)
     .include("game")
     .include("game.config")
+    .include("game.currentPlayer")
+    .include("game.currentPlayer.user")
     .get(playerId)
     .then(
       function(player) {
@@ -353,67 +345,7 @@ jobs.process('game turn timeout', 10, function(job, done) {
           job.log("Timeout player " + player.id + " does not match current player " + currentPlayer.id);
           return Promise.reject(new Error("Unable to time out turn due to different current player"));
         }
-
-        return new Query(Turn)
-          .equalTo("game", game)
-          .notEqualTo("save", null)
-          .addDescending("createdAt")
-          .first();
-      }
-    ).then(
-      function(lastTurn) {
-
-        var consecutiveTurnTimeouts = game.get("consecutiveTurnTimeouts");
-        var playerNum = game.get("config").get("playerNum");
-        var timeoutRounds = (consecutiveTurnTimeouts + 1) / playerNum;
-        
-        game.increment("consecutiveTurnTimeouts");
-
-        var lastValidTurn =
-          !lastTurn ?
-            null
-          :
-            lastTurn.get("save") !== null ?
-            lastTurn : lastTurn.get("lastValid")
-        ;
-
-        var turn = new Turn();
-        turn.set("game", game);
-        turn.set("save", null);
-        turn.set("player", currentPlayer);
-        turn.set("turn", game.get("turn"));
-        turn.set("lastValid", lastValidTurn);
-
-        if (timeoutRounds >= constants.GAME_ENDING_INACTIVE_ROUNDS) {
-          job.log("Game timed out");
-          job.log("  consecutiveTurnTimeouts:", consecutiveTurnTimeouts);
-          job.log("  playerNum:", playerNum);
-          game.set("state", GameState.Ended);
-          return Promise.when(
-            null,
-            turn.save(),
-            game.save(),
-            notifyGame(game, constants.t.GAME_INACTIVE_TIMEOUT, { game: game })
-          );
-        }
-
-        return Promise.when(
-          turn.save(),
-          gameNextPlayer(game, turn)
-        );
-      }
-    ).then(
-      function(nextPlayer, turn, endedGame, endedPush) {
-        if (endedGame) {
-          return Promise.resolve();
-        }
-
-        job.log("Next player: " + (nextPlayer ? nextPlayer.id : "N/A"));
-        if (nextPlayer) {
-          return Promise.resolve();
-        } else {
-          return Promise.reject(new Error("Unable to transition game to next player"));
-        }
+        return dropPlayer(game, currentPlayer);
       }
     ).then(
       function() {
@@ -1374,6 +1306,82 @@ function fetchInclude(object, includes, options) {
     .get(object.id, options);
 }
 
+/**
+ * Drop the player from the game, advancing to the next player, adding a
+ * cloned turn if required, ending and/or destroying the game if the right
+ * conditions are met.
+ * @param game  The game to end, requires `currentPlayer`, `currentPlayer.user` 
+ * and `config` to be available.
+ * @param leaver 
+ */
+function dropPlayer(game, leaver) {
+  var currentLeft;
+  
+  leaver.set("state", PlayerState.Inactive);
+  
+  var user = leaver.get("user");
+  var currentPlayer = game.get("currentPlayer");
+  var currentLeft = currentPlayer && currentPlayer.id == leaver.id;
+
+  var aborted =
+    game.get("state") == GameState.Lobby &&
+    game.get("creator").id == user.id;
+
+  var finished =
+    game.get("state") == GameState.Ended;
+  
+  if (aborted) {
+    game.set("state", GameState.Ended);
+    notifyGame(game, constants.t.GAME_ABORTED, {
+      game: game
+    });
+  } else if (!finished) {
+    // Change slot to AI
+    var config = game.get("config");
+    var slots = config.get("slots");
+    var slotIndex = leaver.get("slot");
+    if (!(slotIndex >= 0 && slotIndex < slots.length)) {
+      return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG));
+    }
+    var slot = slots[slotIndex];
+    slot.type = SlotType.AI;
+  }
+
+  return Promise.resolve(currentLeft && !aborted ?
+    gameTurnClone(game, currentPlayer) :
+    null
+  ).then(
+    function(clonedTurn) {
+      return Promise.when(
+        leaver.save(),
+        clonedTurn ?
+          gameNextPlayer(game, clonedTurn) :
+          Promise.resolve(leaver)
+      );
+    }
+  ).then(
+    function(player, nextPlayer) {
+      return game.save();
+    }
+  ).then(
+    function() {
+      if (game.get("state") == GameState.Ended) {
+        var activeCountQuery = new Query(Player);
+        return activeCountQuery
+          .equalTo("game", game)
+          .equalTo("state", PlayerState.Active)
+          .count()
+          .then(
+            function(count) {
+              if (count > 0) return;
+              return game.destroy();
+            }
+          );
+      }
+    }
+  );
+}
+
 Parse.Cloud.define("joinGame", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
@@ -1416,14 +1424,10 @@ Parse.Cloud.define("leaveGame", function(req, res) {
   
   var gameId = String(req.params.gameId);
   
-  var leaver;
-  var game;
-  var currentLeft;
-  var aborted;
-  var finished;
   var gameQuery = new Query(Game);
   gameQuery
     .include("config")
+    .include("currentPlayer")
     .get(gameId)
     .then(
       function(g) {
@@ -1445,70 +1449,12 @@ Parse.Cloud.define("leaveGame", function(req, res) {
           .first();
       }
     ).then(
-      function(player) {
-        if (!player) return Promise.reject(new CodedError(constants.t.PLAYER_NOT_IN_GAME));
-        leaver = player;
-        player.set("state", PlayerState.Inactive);
-        
-        var currentPlayer = game.get("currentPlayer");
-        currentLeft = currentPlayer && currentPlayer.id == player.id;
-
-        aborted =
-          game.get("state") == GameState.Lobby &&
-          game.get("creator").id == user.id;
-
-        finished =
-          game.get("state") == GameState.Ended;
-        
-        if (aborted) {
-          game.set("state", GameState.Ended);
-          notifyGame(game, constants.t.GAME_ABORTED, {
-            game: game
-          });
-        } else if (!finished) {
-          // Change slot to AI
-          var config = game.get("config");
-          var slots = config.get("slots");
-          var slotIndex = player.get("slot");
-          if (!(slotIndex >= 0 && slotIndex < slots.length)) {
-            return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG));
-          }
-          var slot = slots[slotIndex];
-          slot.type = SlotType.AI;
-        }
-        
-        return Promise.when(
-          player.save(),
-
-          currentLeft && !aborted ?
-            gameNextPlayer(game) :
-            Promise.resolve(player),
-
-          game.save()
-        );
+      function(leaver) {
+        if (!leaver) return Promise.reject(new CodedError(constants.t.PLAYER_NOT_IN_GAME));
+        return dropPlayer(game, leaver);
       }
     ).then(
-      function(player, nextPlayer, g) {
-        game = g;
-        if (game.get("state") == GameState.Ended) {
-          return player.save().then(
-            function() {
-              var activeCountQuery = new Query(Player);
-              return activeCountQuery
-                .equalTo("game", game)
-                .equalTo("state", PlayerState.Active)
-                .count()
-            }
-          ).then(
-            function(count) {
-              if (count > 0) return;
-              return game.destroy();
-            }
-          );
-        }
-      }
-    ).then(
-      function() {
+      function(leaver) {
         respond(res, constants.t.GAME_LEFT, {
           player: leaver
         });
@@ -1727,7 +1673,6 @@ Parse.Cloud.define("listTurns", function(req, res) {
         return query
           .equalTo("game", game)
           .include("player.user")
-          .include("lastValid")
           .find();
       }
     ).then(
@@ -1989,6 +1934,39 @@ function gameNextPlayer(game, lastTurn, final) {
 
 }
 
+/**
+ * Clone the last turn of the game, save and return it.
+ * @param game The game for which the turn should be cloned. If there are no
+ * turns in the game, the `save` field is set to an empty string.
+ * @param currentPlayer The current player in the game.
+ */
+function gameTurnClone(game, currentPlayer) {
+  return new Query(Turn)
+  .equalTo("game", game)
+  .addDescending("createdAt")
+  .first()
+  .then(
+    function(lastTurn) {
+      var save = "";
+      if (lastTurn) {
+        save = lastTurn.get("save");
+      }
+      
+      var turn = new Turn();
+      turn.set("game", game);
+      turn.set("save", save);
+      turn.set("player", currentPlayer);
+      turn.set("turn", game.get("turn"));
+      
+      game.set("consecutiveTurnTimeouts", 0);
+      return turn.save();
+    }
+  )
+}
+
+
+
+
 Parse.Cloud.define("gameTurn", function(req, res) {
   if (errorOnInvalidUser(req.user, res)) return;
 
@@ -2023,8 +2001,7 @@ Parse.Cloud.define("gameTurn", function(req, res) {
         turn.set("save", save);
         turn.set("player", currentPlayer);
         turn.set("turn", game.get("turn"));
-        turn.set("lastValid", null);
-
+        
         game.set("consecutiveTurnTimeouts", 0);
 
         return Promise.when(

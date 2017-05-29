@@ -5,7 +5,7 @@ var masterKey = process.env.MASTER_KEY;
 
 var constants = require('../cloud/constants.js');
 var GameState = constants.GameState;
-var TurnType = constants.TurnType;
+var PlayerState = constants.PlayerState;
 var AIDifficulty = constants.AIDifficulty;
 
 var timeoutMultiplier = 2;
@@ -1693,7 +1693,213 @@ describe('game flow', function() {
 
   });
 
+  describe("ai", function() {
+    describe("should copy the turn if the current player leaves", function() {
+        
+      var game = {};
+
+      it('creates a game and gets the game id with Alice', function() {
+        return parseCall("Alice", "createGame", {
+          "slots": [
+            { "type": "creator" },
+            { "type": "open" },
+            { "type": "open" }
+          ],
+          "turnMaxSec": 10
+        }).then(
+          function(entity) {
+            game.id = entityGameId(entity);
+          }
+        );
+      });
+      joinGame("Bob", game);
+      joinGame("Carol", game);
+
+      turnNumber = 0;
+
+      makeTurn("Alice", game, "allow", turnNumber++);
+      makeTurn("Bob",   game, "allow", turnNumber++);
+      makeTurn("Carol", game, "allow", turnNumber++);
+      makeTurn("Alice", game, "allow", turnNumber++);
+
+      leaveGame("Bob", game);
+
+      it("gets the copied turn", function() {
+        return parseCall("Alice", "listTurns", {
+          gameId: game.id,
+          limit: 2
+        }).then(
+          function(entity) {
+            var result = entityResult(entity, constants.t.TURN_LIST);
+            var turns = result.turns;
+            turns[0].turn.should.equal(4);
+            turns[0].player.user.displayName.should.equal("Bobzor");
+            turns[1].turn.should.equal(3);
+            turns[1].player.user.displayName.should.equal("Ally");
+            turns[0].save.should.equal(turns[1].save);
+            turns[0].save.should.equal("turn 3");
+          }
+        );
+      })
+
+      listGames("Alice", [game],
+        "should turn to AI and advance to the next player",
+        function(games) {
+          games.should.have.length(1);
+          var gameResult = games[0];
+          game.id.should.equal(gameResult.objectId);
+
+
+          var slots = gameResult.config.slots;
+          slots.should.have.length(3);
+          slots[1].type.should.equal(constants.SlotType.AI);
+          
+          var currentPlayer = gameResult.currentPlayer;
+          currentPlayer.user.displayName.should.equal("Carry");
+        }
+      ); 
+      
+    });
+
+    if (testTimeouts) describe("should copy the turn if the current player times out", function() {
+        
+      var game = {};
+      var turnMaxSec = 5;
+
+      it('creates a game and gets the game id with Alice', function() {
+        return parseCall("Alice", "createGame", {
+          "slots": [
+            { "type": "creator" },
+            { "type": "open" },
+            { "type": "open" }
+          ],
+          "turnMaxSec": turnMaxSec
+        }).then(
+          function(entity) {
+            game.id = entityGameId(entity);
+          }
+        );
+      });
+      joinGame("Bob", game);
+      joinGame("Carol", game);
+
+      turnNumber = 0;
+
+      makeTurn("Alice", game, "allow", turnNumber++);
+      makeTurn("Bob",   game, "allow", turnNumber++);
+      makeTurn("Carol", game, "allow", turnNumber++);
+      makeTurn("Alice", game, "allow", turnNumber++);
+      
+      it("waits for turn to time out", function() {
+        var promise = new Promise();
+        setTimeout(function() {
+          promise.resolve();
+        }, turnMaxSec*1000 + 1000);
+        this.timeout(turnMaxSec*1000 + 2000);
+        return promise;
+      })
+
+      it("gets the copied turn", function() {
+        return parseCall("Alice", "listTurns", {
+          gameId: game.id,
+          limit: 2
+        }).then(
+          function(entity) {
+            var result = entityResult(entity, constants.t.TURN_LIST);
+            var turns = result.turns;
+            turns[0].turn.should.equal(4);
+            turns[0].player.user.displayName.should.equal("Bobzor");
+            turns[1].turn.should.equal(3);
+            turns[1].player.user.displayName.should.equal("Ally");
+            turns[0].save.should.equal(turns[1].save);
+            turns[0].save.should.equal("turn 3");
+          }
+        );
+      })
+
+      listGames("Alice", [game],
+        "should advance to the next player",
+        function(games) {
+          games.should.have.length(1);
+          var gameResult = games[0];
+          game.id.should.equal(gameResult.objectId);
+
+
+          var slots = gameResult.config.slots;
+          slots.should.have.length(3);
+          slots[1].type.should.equal(constants.SlotType.AI);
+          
+          var currentPlayer = gameResult.currentPlayer;
+          currentPlayer.user.displayName.should.equal("Carry");
+        }
+      );
+
+      
+    });
+
+    describe("should create an empty turn for starting AI", function() {
+        
+      var game = {};
+      var turnMaxSec = 5;
+
+      it('creates a game and gets the game id with Alice', function() {
+        return parseCall("Alice", "createGame", {
+          "slots": [
+            { "type": "creator" },
+            { "type": "open" },
+            { "type": "open" }
+          ],
+          "turnMaxSec": turnMaxSec
+        }).then(
+          function(entity) {
+            game.id = entityGameId(entity);
+          }
+        );
+      });
+      joinGame("Bob", game);
+      joinGame("Carol", game);
+
+      leaveGame("Alice", game);
+
+      it("gets the initial empty turn", function() {
+        return parseCall("Bob", "listTurns", {
+          gameId: game.id
+        }).then(
+          function(entity) {
+            var result = entityResult(entity, constants.t.TURN_LIST);
+            var turns = result.turns;
+            turns.should.have.length(1);
+
+            var turn = turns[0];
+            turn.save.should.equal("");
+            turn.turn.should.equal(0);
+          }
+        );
+      })
+
+      listGames("Bob", [game],
+        "should advance to the next player",
+        function(games) {
+          games.should.have.length(1);
+          var gameResult = games[0];
+          game.id.should.equal(gameResult.objectId);
+
+          var slots = gameResult.config.slots;
+          slots.should.have.length(3);
+          slots[0].type.should.equal(constants.SlotType.AI);
+          
+          var currentPlayer = gameResult.currentPlayer;
+          currentPlayer.user.displayName.should.equal("Bobzor");
+        }
+      );
+
+      
+    });
+
+  });
+
 });
+
 
 describe("quota", function() {
   before(function() {
@@ -2192,22 +2398,20 @@ describe("kue", function() {
           limit: 4
         }).then(
           function(entity) {
-
-
             var result = entityResult(entity, constants.t.TURN_LIST);
             var turns = result.turns;
             turns.should.have.length(3);
 
             turns.forEach(function(turn, index) {
               // Invert index (most recent is highest)
-              index = 2 - index;
-              turn.should.have.property("type");
+              index = turns.length - 1 - index;
+              turn.should.have.deep.property("player.state");
               if (index == 1) {
                 // Timeout turn
-                turn.type.should.equal(TurnType.Timeout);
+                turn.player.state.should.equal(PlayerState.Inactive);
                 turn.save.should.equal("turn 0");
               } else {
-                turn.type.should.equal(TurnType.Player);
+                turn.player.state.should.equal(PlayerState.Active);
                 turn.save.should.equal("turn " + index);
               }
             }, this);
@@ -2216,7 +2420,7 @@ describe("kue", function() {
       });
     }
 
-    makeTurn("Bob", game, "finish", turnNumber++);
+    makeTurn("Alice", game, "finish", turnNumber++);
 
     if (testTimeouts) it('should be different after a few turns', function() {
       return parseCall({ useMasterKey: true }, "debugGame", {
@@ -2303,7 +2507,7 @@ describe("kue", function() {
       );
     });
 
-    it("should end the game after " + constants.GAME_ENDING_INACTIVE_ROUNDS + " inactive rounds", function() {
+    it("should destroy the game after " + constants.GAME_ENDING_INACTIVE_ROUNDS + " inactive rounds", function() {
       var waitMs = (turnMaxSec + 1)*slots.length*constants.GAME_ENDING_INACTIVE_ROUNDS*1000;
       var promise = new Promise();
       setTimeout(function() {
@@ -2319,8 +2523,7 @@ describe("kue", function() {
         }
       ).then(
         function(entity) {
-          var result = entityResult(entity);
-          result.state.should.equal(GameState.Ended);
+          entityError(entity, constants.t.GAME_NOT_FOUND);
         }
       );
     });
