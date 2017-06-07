@@ -782,7 +782,6 @@ function createConfigFromRequest(req) {
     })); 
   }
   var slots = [];
-  var isRandom = false;
   var displayNames = [];
   var creatorSlots = 0;
   var noneSlots = 0;
@@ -799,9 +798,6 @@ function createConfigFromRequest(req) {
     switch (slot.type) {
       case SlotType.Creator:
         creatorSlots++;
-        break;
-      case SlotType.Open:
-        isRandom = true;
         break;
       case SlotType.Invite:
         if (typeof(reqSlot.displayName) != "string") {
@@ -827,7 +823,6 @@ function createConfigFromRequest(req) {
     slots.push(slot);
   }
   config.set("playerNum", slots.length - noneSlots);
-  config.set("isRandom", isRandom);
 
   if (creatorSlots != 1) {
     return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG, {
@@ -1294,6 +1289,23 @@ Parse.Cloud.beforeSave(Player, function(req, res) {
     res.success();
   }
 
+});
+
+Parse.Cloud.beforeSave(Config, function(req, res) {
+  var config = req.object;
+  var slots = config.get("slots");
+
+  if (!slots) {
+    res.error(constants.t.INVALID_PARAMETER);
+    return;
+  }
+
+  var isRandom = slots.some(function(slot) {
+    return slot.type == SlotType.Open;
+  }, this);
+
+  config.set("isRandom", isRandom);
+  res.success();
 });
 
 function fetchInclude(object, includes, options) {

@@ -273,6 +273,19 @@ function purgeGames() {
   );
 }
 
+function purgeRandom() {
+  it('should remove random games first', function() {
+    return parseCall({ useMasterKey: true }, "purgeRandomGames",
+      {}
+    ).then(
+      function(result) {
+        result.should.have.property("result");
+        should.equal(result.result.purged, true);
+      }
+    );
+  });
+}
+
 function internalStartGame(name, game, desc, customFunc, delay) {
   var timeBuffer = 1;
   if (!desc) desc = 'has ' + name + ' start the game';
@@ -460,33 +473,7 @@ describe('game flow', function() {
 
   describe('invite', function() {
 
-    var game = {};
-
-    it('creates a game and gets the game id with Alice', function() {
-      return parseCall("Alice", "createGame", {
-        "slots": [
-          { type: "creator" },
-          { type: "open" },
-          { type: "invite", displayName: "Bobzor" },
-          { type: "invite", displayName: "Carry" },
-        ],
-        "fameCards": {},
-        "turnMaxSec": 60
-      }).then(
-        function(entity) {
-          game.id = entityGameId(entity);
-          var result = entityResult(entity, constants.t.GAME_CREATED);
-          result.game.state.should.equal(GameState.Lobby);
-
-          var slots = result.game.config.slots;
-          slots.should.have.length(4);
-          slots[3].type.should.equal("invite");
-
-        }
-      );
-    });
-    
-    function checkSlots(expectedFill) {
+    function checkSlots(game, expectedFill) {
       listGames("Alice", [game],
         "should return these slots as filled: " + expectedFill,
         function(games) {
@@ -503,44 +490,158 @@ describe('game flow', function() {
         }
       );
     }
-    checkSlots([true, false, false, false])
 
-    joinGame("Bob", game);
-    checkSlots([true, false, true, false])
-    listGames("Alice", [game],
-      "should keep the same slot type",
-      function(games) {
-        games.should.have.length(1);
-        game.id.should.equal(games[0].objectId);
+    describe('four player game', function() {
+        
+      var game = {};
 
-        var slots = games[0].config.slots;
-        slots.should.have.length(4);
-        slots[3].type.should.equal("invite");
-      }
-    );
+      it('creates a game and gets the game id with Alice', function() {
+        return parseCall("Alice", "createGame", {
+          "slots": [
+            { type: "creator" },
+            { type: "open" },
+            { type: "invite", displayName: "Bobzor" },
+            { type: "invite", displayName: "Carry" },
+          ],
+          "fameCards": {},
+          "turnMaxSec": 60
+        }).then(
+          function(entity) {
+            game.id = entityGameId(entity);
+            var result = entityResult(entity, constants.t.GAME_CREATED);
+            result.game.state.should.equal(GameState.Lobby);
 
-    it('declines invite with Carol', function() {
-      return parseCall("Carol", "declineInvite", {
-        "gameId": game.id
-      }).then(
-        function(entity) {
-          entityResult(entity, constants.t.GAME_INVITE_DECLINED);
+            var slots = result.game.config.slots;
+            slots.should.have.length(4);
+            slots[3].type.should.equal("invite");
+
+          }
+        );
+      });
+      
+      checkSlots(game, [true, false, false, false])
+
+      joinGame("Bob", game);
+      checkSlots(game, [true, false, true, false])
+      listGames("Alice", [game],
+        "should keep the same slot type",
+        function(games) {
+          games.should.have.length(1);
+          game.id.should.equal(games[0].objectId);
+
+          var slots = games[0].config.slots;
+          slots.should.have.length(4);
+          slots[3].type.should.equal("invite");
         }
       );
-    });
-    checkSlots([true, false, true, false])
 
-    listGames("Alice", [game],
-      "should have the slot type changed to open",
-      function(games) {
-        games.should.have.length(1);
-        game.id.should.equal(games[0].objectId);
+      it('declines invite with Carol', function() {
+        return parseCall("Carol", "declineInvite", {
+          "gameId": game.id
+        }).then(
+          function(entity) {
+            entityResult(entity, constants.t.GAME_INVITE_DECLINED);
+          }
+        );
+      });
+      checkSlots(game, [true, false, true, false])
 
-        var slots = games[0].config.slots;
-        slots.should.have.length(4);
-        slots[3].type.should.equal("open");
-      }
-    );
+      listGames("Alice", [game],
+        "should have the slot type changed to open",
+        function(games) {
+          games.should.have.length(1);
+          game.id.should.equal(games[0].objectId);
+
+          var slots = games[0].config.slots;
+          slots.should.have.length(4);
+          slots[3].type.should.equal("open");
+        }
+      );
+    })
+
+    describe('two player game', function() {
+        
+      var game = {};
+
+      purgeRandom();
+
+      it('creates a game and gets the game id with Alice', function() {
+        return parseCall("Alice", "createGame", {
+          "slots": [
+            { type: "creator" },
+            { type: "invite", displayName: "Bobzor" },
+          ],
+          "fameCards": {},
+          "turnMaxSec": 60
+        }).then(
+          function(entity) {
+            game.id = entityGameId(entity);
+            var result = entityResult(entity, constants.t.GAME_CREATED);
+            result.game.state.should.equal(GameState.Lobby);
+
+            var slots = result.game.config.slots;
+            slots.should.have.length(2);
+            slots[1].type.should.equal("invite");
+          }
+        );
+      });
+      
+      it('finds no games with Bob', function() {
+        return parseCall("Bob", "findGames", {
+        }).then(
+          function(entity) {
+            var result = entityResult(entity, constants.t.GAME_LIST);
+            result.should.have.property("games");
+            result.games.should.have.length(0);
+          }
+        );
+      });
+      
+      it('finds no games with Carol', function() {
+        return parseCall("Carol", "findGames", {
+        }).then(
+          function(entity) {
+            var result = entityResult(entity, constants.t.GAME_LIST);
+            result.should.have.property("games");
+            result.games.should.have.length(0);
+          }
+        );
+      });
+
+      it('declines invite with Bob', function() {
+        return parseCall("Bob", "declineInvite", {
+          "gameId": game.id
+        }).then(
+          function(entity) {
+            entityResult(entity, constants.t.GAME_INVITE_DECLINED);
+          }
+        );
+      });
+      checkSlots(game, [true, false])
+
+      it('should find a game with Bob after declining invite', function() {
+        return parseCall("Bob", "findGames", {
+        }).then(
+          function(entity) {
+            var result = entityResult(entity, constants.t.GAME_LIST);
+            result.should.have.property("games");
+            result.games.should.have.length(1);
+          }
+        );
+      });
+      
+      it('should find a game with Carol after declining invite', function() {
+        return parseCall("Carol", "findGames", {
+        }).then(
+          function(entity) {
+            var result = entityResult(entity, constants.t.GAME_LIST);
+            result.should.have.property("games");
+            result.games.should.have.length(1);
+          }
+        );
+      });
+      
+    })
 
     describe("list", function() {
 
@@ -1026,19 +1127,6 @@ describe('game flow', function() {
     var gameInfos = [];
     var gameToJoin = {};
     var gameNum = 7;
-
-    function purgeRandom() {
-      it('should remove random games first', function() {
-        return parseCall({ useMasterKey: true }, "purgeRandomGames",
-          {}
-        ).then(
-          function(result) {
-            result.should.have.property("result");
-            should.equal(result.result.purged, true);
-          }
-        );
-      });
-    }
 
     purgeRandom();
 
