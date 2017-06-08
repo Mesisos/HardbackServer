@@ -895,8 +895,8 @@ function createConfigFromRequest(req) {
     ).then(
       function(blockers) {
         if (blockers && blockers.length > 0) {
-          return Promise.reject(new CodedError(constants.t.GAME_INVITE_BLOCKED, {
-            blockerNames: blockers.map(
+          return Promise.reject(new CodedError(constants.t.GAME_PLAYERS_UNAVAILABLE, {
+            names: blockers.map(
               function(blocker) {
                 return blocker.get("user").get("displayName");
               }

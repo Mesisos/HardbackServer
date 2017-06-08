@@ -246,8 +246,8 @@ module.exports = Object.freeze({
     GAME_INVALID_CONFIG: { id: 1110, m:
       "Invalid game configuration: {{reason}}"
     },
-    GAME_INVITE_BLOCKED: { id: 1111, m:
-      "Blocked from inviting {{blockerNames}}"
+    GAME_PLAYERS_UNAVAILABLE: { id: 1111, m:
+      "{{names}} not available to play a game right now."
     },
     GAME_QUOTA_EXCEEDED: { id: 1112, m:
       "Unable to create game, exceeded quota."

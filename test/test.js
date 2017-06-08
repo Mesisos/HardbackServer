@@ -2270,7 +2270,7 @@ describe("contacts", function() {
       contactCheck("Bob");
 
       blockContact("Bob", "Ally");
-      createGame(constants.t.GAME_INVITE_BLOCKED);
+      createGame(constants.t.GAME_PLAYERS_UNAVAILABLE);
 
       addContact("Bob", "Ally")
       createGame(constants.t.GAME_CREATED);
@@ -2286,7 +2286,7 @@ describe("contacts", function() {
       createGame(constants.t.GAME_CREATED);
 
       blockContact("Bob", "Ally");
-      createGame(constants.t.GAME_INVITE_BLOCKED);
+      createGame(constants.t.GAME_PLAYERS_UNAVAILABLE);
 
       addContact("Bob", "Ally")
       createGame(constants.t.GAME_CREATED);
