@@ -277,7 +277,7 @@ Change user preferences, currently only supports changing the avatar.
 ```
 // Game join response object
 {
-  "code": GAME_CREATED,
+  "code": GAME_CREATED / GAME_QUOTA_EXCEEDED | GAME_INVALID_CONFIG | GAME_PLAYERS_UNAVAILABLE,
 
   // Game object
   "game": {
