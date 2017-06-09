@@ -727,7 +727,6 @@ function respondWithGameList(req, res, user, configQuery, pagingConfig) {
         var playerQuery = new Query(Player);
         if (games) playerQuery.containedIn("game", games);
         playerQuery
-          .equalTo("state", PlayerState.Active)
           .include("user");
         return playerQuery.find();
       }
@@ -1581,7 +1580,6 @@ Parse.Cloud.define("listGames", function(req, res) {
 
       var playerQuery = new Query(Player);
       return playerQuery
-        .equalTo("state", PlayerState.Active)
         .containedIn("game", games)
         .include("user")
         .find();

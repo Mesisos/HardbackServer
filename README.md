@@ -494,7 +494,9 @@ List all the games the logged-in user is currently participating in.
               // Always `true` for AI-type slots.
               "filled": true|false,
 
-              // If filled and not AI, a constrained Player object.
+              // If filled, a constrained Player object. Not available for
+              // AI slot types, except if the AI slot is a result of the
+              // player dropping.
              "player": {
                // User object
                 "user": {

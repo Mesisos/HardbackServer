@@ -1623,9 +1623,10 @@ describe('game flow', function() {
         var slots = games[0].config.slots;
         slots.should.have.length(3);
         slots[0].type.should.equal("ai");
+        slots[0].should.have.deep.property("player.user.displayName");
+        slots[0].player.user.displayName.should.equal("Ally");
       }
     );
-
 
     leaveGame("Alice", game,
       "should not allow Alice to leave the game twice",
@@ -1694,6 +1695,7 @@ describe('game flow', function() {
           "slots": [
             { "type": "creator" },
             { "type": "open" },
+            { "type": "open" },
             { "type": "open" }
           ],
           "turnMaxSec": 10
@@ -1704,6 +1706,23 @@ describe('game flow', function() {
         );
       });
       joinGame("Bob", game);
+      leaveGame("Bob", game, "with Bob");
+
+      listGames("Alice", [game],
+        "should keep it running after Bob leaves",
+        function(games) {
+          games.should.have.length(1);
+          
+          var slots = games[0].config.slots;
+          slots.should.have.length(4);
+          slots[1].type.should.equal("ai");
+          slots[1].should.have.deep.property("player.user.displayName");
+          slots[1].player.user.displayName.should.equal("Bobzor");
+        }
+      );
+
+      joinGame("Carol", game);
+
       leaveGame("Alice", game, "with Alice");
         
       it("should end the game", function() {
