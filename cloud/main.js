@@ -6,6 +6,8 @@ var kue = require('kue');
 var JsonPropertyFilter = require("json-property-filter");
 var Mustache = require("mustache");
 
+// Change "a few seconds ago" to "moments ago"
+moment.localeData('en')._relativeTime.s = "moments";
 
 GameState = constants.GameState;
 PlayerState = constants.PlayerState;

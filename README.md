@@ -76,7 +76,9 @@ For Parse server-level errors, see Parse Server documentation.
   "password": "password",
 
   // Required to be unique, you can check for availability with `checkNameFree`.
-  "displayName": "Signey"
+  "displayName": "Signey",
+
+  "avatar": integer
 }
 ```
 ### Response
