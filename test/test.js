@@ -2093,6 +2093,69 @@ describe("quota", function() {
 
 })
 
+describe("users", function() {
+  before(getUserSessions);
+
+  it("set avatar for Alice to 5", function() {
+    return parseCall("Alice", "userSet", {
+      avatar: 5
+    }).then(
+      function(entity) {
+        entityResult(entity, constants.t.USER_SAVED);
+      }
+    );
+  });
+
+  it("add Alice as friend with Bob", function() {
+    return parseCall("Bob", "addFriend", {
+      displayName: "Ally"
+    }).then(
+      function(entity) {
+        try {
+          entityResult(entity, constants.t.CONTACT_ADDED);
+        } catch(e) {
+          entityError(entity, constants.t.CONTACT_EXISTS);
+        }
+      }
+    );
+  });
+
+  it("should see avatar 5 for Alice in Bob's friends", function() {
+    return parseCall("Bob", "listFriends", {}).then(
+      function(entity) {
+        var result = entityResult(entity, constants.t.CONTACT_LIST);
+        var alice = result.contacts.find(function(contact) {
+          return contact.displayName == "Ally";
+        });
+        alice.avatar.should.equal(5);
+      }
+    )
+  })
+
+  it("set avatar for Alice to 1", function() {
+    return parseCall("Alice", "userSet", {
+      avatar: 1
+    }).then(
+      function(entity) {
+        entityResult(entity, constants.t.USER_SAVED);
+      }
+    );
+  });
+  
+  it("should see avatar 1 for Alice in Bob's friends", function() {
+    return parseCall("Bob", "listFriends", {}).then(
+      function(entity) {
+        var result = entityResult(entity, constants.t.CONTACT_LIST);
+        var alice = result.contacts.find(function(contact) {
+          return contact.displayName == "Ally";
+        });
+        alice.avatar.should.equal(1);
+      }
+    )
+  })
+
+})
+
 describe("contacts", function() {
   before(getUserSessions);
 

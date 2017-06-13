@@ -2133,12 +2133,13 @@ Parse.Cloud.beforeSave(Parse.User, function(req, res) {
 
     var emailField = user.get("email");
     if (emailField) {
-      respondError(res, constants.t.INVALID_PARAMETER);
-      return;
+      if (emailField != email) {
+        respondError(res, constants.t.INVALID_PARAMETER);
+        return;
+      }
+    } else {
+      user.set("email", email);
     }
-
-    user.set("email", email);
-
     
     var avatar = user.get("avatar");
     if (typeof(avatar) == 'undefined') avatar = constants.AVATAR_DEFAULT;
