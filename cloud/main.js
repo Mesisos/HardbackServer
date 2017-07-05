@@ -1855,10 +1855,7 @@ function prepareTurn(game, player, previousTurn) {
     }));
   }
 
-  var pushPromise = notifyPlayers([player], constants.t.PLAYER_TURN, {
-    game: game,
-    previousTurn: previousTurn
-  });
+  var pushPromise = notifyPlayers([player], constants.t.PLAYER_TURN, {});
 
   var job;
   var jobPromise = addJob("game turn timeout", {
