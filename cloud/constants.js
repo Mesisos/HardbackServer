@@ -184,7 +184,7 @@ module.exports = Object.freeze({
     },
 
     PLAYER_TURN: { id: 200, m:
-      "It's your turn in game {{game.objectId}}!"
+      "It's your turn!"
     },
 
     TURN_SAVED: { id: 300 },
