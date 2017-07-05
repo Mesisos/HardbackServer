@@ -1113,7 +1113,7 @@ function notifyPlayers(players, message, data) {
   users = players.map(function(player) {
     return player.get("user");
   });
-  notifyUsers(users, message, data);
+  return notifyUsers(users, message, data);
 }
 
 function notifyGame(game, message, data) {
