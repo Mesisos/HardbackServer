@@ -155,10 +155,10 @@ module.exports = Object.freeze({
       "Game {{game.objectId}} created"
     },
     GAME_STARTED: { id: 101, m:
-      "Game {{game.objectId}} has started"
+      "Your game with {{others}} has started!"
     },
     GAME_ENDED: { id: 102, m:
-      "Game {{game.objectId}} has ended",
+      "Your game with {{others}} has ended!",
     },
     GAME_JOINED: { id: 103 },
     GAME_LEFT: { id: 104 },
@@ -173,14 +173,14 @@ module.exports = Object.freeze({
     GAME_INVITE_DECLINED: { id: 108 },
 
     GAME_LOBBY_TIMEOUT: { id: 120, m:
-      "Game {{game.objectId}} timed out, nobody joined!"
+      "Your game with {{others}} timed out, nobody joined!"
     },
     GAME_INACTIVE_TIMEOUT: { id: 121, m:
-      "Game {{game.objectId}} ran out!"
+      "Your game with {{others}} ran out!"
     },
 
     GAME_ABORTED: { id: 122, m:
-      "Game {{game.objectId}} ended by creator."
+      "Your game with {{others}} ended by creator."
     },
 
     PLAYER_TURN: { id: 200, m:

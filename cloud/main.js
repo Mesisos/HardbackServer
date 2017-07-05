@@ -1099,14 +1099,36 @@ function sendPush(installationQuery, message, data) {
 }
 
 function notifyUsers(users, message, data) {
-  var sessionQuery = new Query(Parse.Session);
-  sessionQuery
-    .containedIn("user", users);
+  return Parse.Object.fetchAll(users).then(function(users) {
+    return Promise.when(users.map(function(user) {
+      var sessionQuery = new Query(Parse.Session);
+      sessionQuery
+        .equalTo("user", user);
+      
+      var installationQuery = new Query(Parse.Installation);
+      installationQuery.matchesKeyInQuery("installationId", "installationId", sessionQuery);
 
-  var installationQuery = new Query(Parse.Installation);
-  installationQuery.matchesKeyInQuery("installationId", "installationId", sessionQuery);
+      var others = users
+        .filter(function(filterUser) {
+          return filterUser.id != user.id;
+        })
+        .map(function(filterUser) {
+          return filterUser.get("displayName");
+        })
+        .reduce(function(prev, cur, index, arr) {
+          return (
+            arr.length == 1 ? prev + cur :
+            index < arr.length - 1 ? prev + ", " + cur :
+            prev + " and " + cur
+          );
+        }, "")
+      
+      var personalizedData = Object.assign({}, data);
+      personalizedData.others = others;
 
-  return sendPush(installationQuery, message, data);
+      return sendPush(installationQuery, message, personalizedData); 
+    }));
+  })
 }
 
 function notifyPlayers(players, message, data) {
