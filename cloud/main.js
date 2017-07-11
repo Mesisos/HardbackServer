@@ -73,6 +73,10 @@ var parseObjectConfig = {
           if (!slots) return;
           if (slotIndex < 0 || slotIndex >= slots.length) return;
           var slot = slots[slotIndex];
+          if (player.get("state") == PlayerState.Active) {
+          } else if (slot.type != SlotType.AI) {
+            return;
+          }
           slot.filled = true;
           slot.player = filterObject(player, context);
           slot.player = getPropFilter([
@@ -1379,7 +1383,11 @@ function dropPlayer(game, leaver) {
       return Promise.reject(new CodedError(constants.t.GAME_INVALID_CONFIG));
     }
     var slot = slots[slotIndex];
-    slot.type = SlotType.AI;
+    if (game.get("state") == GameState.Lobby) {
+      slot.type = SlotType.Open;
+    } else {
+      slot.type = SlotType.AI;
+    }
   }
 
   return Promise.resolve(currentLeft && !aborted ?

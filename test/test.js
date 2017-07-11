@@ -1623,6 +1623,7 @@ describe('game flow', function() {
         var slots = games[0].config.slots;
         slots.should.have.length(3);
         slots[0].type.should.equal("ai");
+        slots[0].filled.should.equal(true);
         slots[0].should.have.deep.property("player.user.displayName");
         slots[0].player.user.displayName.should.equal("Ally");
       }
@@ -1715,9 +1716,9 @@ describe('game flow', function() {
           
           var slots = games[0].config.slots;
           slots.should.have.length(4);
-          slots[1].type.should.equal("ai");
-          slots[1].should.have.deep.property("player.user.displayName");
-          slots[1].player.user.displayName.should.equal("Bobzor");
+          slots[1].type.should.equal("open");
+          slots[1].filled.should.equal(false);
+          slots[1].should.not.have.deep.property("player.user.displayName");
         }
       );
 
