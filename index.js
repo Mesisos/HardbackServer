@@ -28,7 +28,7 @@ var serverConfig = {
     ios: {
       pfx: 'push/PushCertificate.p12',
       passphrase: process.env.IOS_PASSPHRASE || '',
-      bundleId: process.env.IOS_BUNDLE,
+      topic: process.env.IOS_BUNDLE,
       production: process.env.IOS_PRODUCTION == 'true'
     }
   },
