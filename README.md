@@ -161,6 +161,12 @@ All of the cloud functions below require you to be logged in as a user. Email ve
 3 -> Ended
 ```
 
+### Player State
+```
+0 -> Active
+1 -> Inactive
+```
+
 ### AI Difficulty
 ```
 0 -> None
@@ -505,7 +511,9 @@ List all the games the logged-in user is currently participating in.
                   "displayName": string,
                   "avatar": integer,
                   "objectId": string
-                }
+                },
+                // Active or inactive, see Player State above.
+                "state": integer,
               },
 
               // AI difficulty as specified in the create game configuration,

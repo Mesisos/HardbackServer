@@ -1042,6 +1042,30 @@ describe('game flow', function() {
     makeTurn("Bob",   game, "invalid");
     makeTurn("Carol", game, "invalid");
     makeTurn("Dan",   game, "invalid");
+    
+    listGames("Alice", [game],
+      "test",
+      function(games) {
+        games.should.have.length(1);
+        var bobSlot = games[0].config.slots[1];
+        bobSlot.filled.should.equal(true);
+        bobSlot.should.have.deep.property('player.user.displayName');
+        bobSlot.player.user.displayName.should.equal('Bobzor');
+      }
+    );
+    
+    leaveGame("Bob", game);
+    
+    listGames("Alice", [game],
+      "test",
+      function(games) {
+        games.should.have.length(1);
+        var bobSlot = games[0].config.slots[1];
+        bobSlot.filled.should.equal(true);
+        bobSlot.should.have.deep.property('player.user.displayName');
+        bobSlot.player.user.displayName.should.equal('Bobzor');
+      }
+    );
 
   });
 
@@ -1607,7 +1631,7 @@ describe('game flow', function() {
 
 
     leaveGame("Alice", game);
-
+    
     listGames("Alice", [game],
       "should remove the game from the list of active games for Alice",
       function(games) {
@@ -1717,8 +1741,10 @@ describe('game flow', function() {
           var slots = games[0].config.slots;
           slots.should.have.length(4);
           slots[1].type.should.equal("open");
-          slots[1].filled.should.equal(false);
-          slots[1].should.not.have.deep.property("player.user.displayName");
+          slots[1].filled.should.equal(true);
+          slots[1].should.have.deep.property("player.user.displayName");
+          slots[1].player.user.displayName.should.equal("Bobzor");
+          slots[1].player.state.should.equal(PlayerState.Inactive);
         }
       );
 

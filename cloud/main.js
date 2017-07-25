@@ -73,14 +73,11 @@ var parseObjectConfig = {
           if (!slots) return;
           if (slotIndex < 0 || slotIndex >= slots.length) return;
           var slot = slots[slotIndex];
-          if (player.get("state") == PlayerState.Active) {
-          } else if (slot.type != SlotType.AI) {
-            return;
-          }
           slot.filled = true;
           slot.player = filterObject(player, context);
           slot.player = getPropFilter([
             "slot",
+            "state",
             "user"
           ]).apply(slot.player);
         }, this);
