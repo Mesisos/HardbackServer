@@ -1121,7 +1121,7 @@ function notifyUsers(users, message, data) {
         })
         .reduce(function(prev, cur, index, arr) {
           return (
-            arr.length == 1 ? prev + cur :
+            index == 0 ? prev + cur :
             index < arr.length - 1 ? prev + ", " + cur :
             prev + " and " + cur
           );
