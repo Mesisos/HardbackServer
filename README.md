@@ -10,6 +10,45 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * `npm run local` or `heroku local` to run the web server locally in a Heroku environment
 * `npm test` to run behavior tests
 
+## MongoDB connection details
+
+You should have your `MONGODB_URI` set in the Heroku dashboard in the following
+format already if you are using the mLab MongoDB addon:
+
+`mongodb://<username>:<password>@<host>:<port>/<database-name>`
+
+The individual values usually look something like this:
+
+* username: `heroku_abcd1234`
+* password: `abcdef12345abcdef12345abcdef12345`
+* host: `xx123456.mlab.com`
+* port: `12345`
+* database-name: usually the same as username
+
+## Importing the schema into a remote server
+
+You can import the included Parse schema by running the following command from
+the repository working directory substituting the values with ones from your
+MongoDB connection url (see above).
+
+`mongorestore -h <host>:<port> -d <database-name> -u <username> -p <password> schema/dev`
+
+On an uninitialized database, this should be enough. For an existing database,
+you'll have to drop the `_SCHEMA` collection first with the following:
+
+`mongo --eval "db.getCollection('_SCHEMA').drop()" <MONGODB_URI>`
+
+## Backup and restore
+
+Backup an entire remote database with `mongodump`:
+
+`mongodump -h <host>:<port> -d <database-name> -u <username> -p <password> -o dump-dir`
+
+
+Restore a remote database from a local dump directory with `mongorestore`:
+
+`mongorestore -h <host>:<port> -d <database-name> -u <username> -p <password> -o dump-dir/<database-name>`
+
 # API
 
 ## On success
