@@ -248,6 +248,7 @@ function checkNameValidity(name, existingId) {
     .then(
       function(result) {
         if (result) {
+            console.log(result);
           return constants.t.DISPLAY_NAME_TAKEN;
         } else {
           return null;
