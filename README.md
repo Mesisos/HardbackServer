@@ -49,6 +49,20 @@ Restore a remote database from a local dump directory with `mongorestore`:
 
 `mongorestore -h <host>:<port> -d <database-name> -u <username> -p <password> -o dump-dir/<database-name>`
 
+## MongoDB indexes
+
+### Push status TTL
+
+Push status logs can usually accumulate over time, so you can add a TTL (Time To Live) index for the `_PushStatus` collection by connecting with the `mongo` cli tool to the database and
+executing the following line:
+
+`db.getCollection('_PushStatus').createIndex({ "_created_at": 1 }, { expireAfterSeconds: 21600 })`
+
+The entries will then get autodeleted after the specified amount of seconds +- a few minutes.
+
+If you want to change the value in seconds you have to either delete the index and create
+a new one or use the appropriate MongoDB commands to modify the value of `expireAfterSeconds`.
+
 # API
 
 ## On success
