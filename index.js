@@ -40,7 +40,7 @@ var serverConfig = {
   publicServerURL: process.env.SERVER_ROOT + process.env.PARSE_MOUNT,
   appName: process.env.APP_NAME,
   emailAdapter: {
-    module: 'parse-server-simple-mailgun-adapter',
+    module: '@parse/simple-mailgun-adapter',
     options: {
       fromAddress: process.env.VERIFICATION_EMAIL_SENDER,
       domain: process.env.MAILGUN_DOMAIN,
