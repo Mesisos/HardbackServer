@@ -18,6 +18,17 @@
 			"update": {},
 			"delete": {},
 			"addField": {}
+		},
+		"indexes": {
+			"_id_": {
+				"_id": 1
+			},
+			"username_1": {
+				"username": 1
+			},
+			"email_1": {
+				"email": 1
+			}
 		}
 	},
 	"avatar": "number"
@@ -45,6 +56,11 @@
 			"addField": {
 				"*": true
 			}
+		},
+		"indexes": {
+			"_id_": {
+				"_id": 1
+			}
 		}
 	}
 }
@@ -65,6 +81,11 @@
 			"delete": {},
 			"addField": {
 				"*": true
+			}
+		},
+		"indexes": {
+			"_id_": {
+				"_id": 1
 			}
 		}
 	},
@@ -89,6 +110,11 @@
 			"addField": {
 				"*": true
 			}
+		},
+		"indexes": {
+			"_id_": {
+				"_id": 1
+			}
 		}
 	},
 	"slot": "number"
@@ -103,7 +129,14 @@
 	"installationId": "string",
 	"sessionToken": "string",
 	"expiresAt": "date",
-	"createdWith": "object"
+	"createdWith": "object",
+	"_metadata": {
+		"indexes": {
+			"_id_": {
+				"_id": 1
+			}
+		}
+	}
 }
 {
 	"_id": "Turn",
@@ -121,6 +154,11 @@
 			"update": {},
 			"delete": {},
 			"addField": {}
+		},
+		"indexes": {
+			"_id_": {
+				"_id": 1
+			}
 		}
 	},
 	"save": "string"
@@ -142,6 +180,11 @@
 			"addField": {
 				"*": true
 			}
+		},
+		"indexes": {
+			"_id_": {
+				"_id": 1
+			}
 		}
 	},
 	"blocked": "boolean"
@@ -161,6 +204,11 @@
 			"delete": {},
 			"addField": {
 				"*": true
+			}
+		},
+		"indexes": {
+			"_id_": {
+				"_id": 1
 			}
 		}
 	}
@@ -184,7 +232,14 @@
 	"appIdentifier": "string",
 	"parseVersion": "string",
 	"UniqueId": "string",
-	"userId": "string"
+	"userId": "string",
+	"_metadata": {
+		"indexes": {
+			"_id_": {
+				"_id": 1
+			}
+		}
+	}
 }
 {
 	"_id": "_Role",
@@ -193,5 +248,15 @@
 	"createdAt": "date",
 	"name": "string",
 	"users": "relation\u003c_User\u003e",
-	"roles": "relation\u003c_Role\u003e"
+	"roles": "relation\u003c_Role\u003e",
+	"_metadata": {
+		"indexes": {
+			"_id_": {
+				"_id": 1
+			},
+			"name_1": {
+				"name": 1
+			}
+		}
+	}
 }

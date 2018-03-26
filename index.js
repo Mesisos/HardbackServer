@@ -9,6 +9,10 @@ var kue = require('kue');
 var constants = require('./cloud/constants.js');
 
 var databaseUri = process.env.DATABASE_URI || process.env.MONGODB_URI;
+var databasePrefix =
+  process.env.PARSE_SERVER_COLLECTION_PREFIX !== undefined ? process.env.PARSE_SERVER_COLLECTION_PREFIX :
+  process.env.MONGODB_PREFIX !== undefined ? process.env.MONGODB_PREFIX :
+  process.env.APP_ID + "_";
 
 if (!databaseUri) {
   console.log('DATABASE_URI not specified, falling back to localhost.');
@@ -16,6 +20,7 @@ if (!databaseUri) {
 
 var serverConfig = {
   databaseURI: databaseUri,
+  collectionPrefix: databasePrefix,
   cloud: process.env.CLOUD_CODE_MAIN || __dirname + '/cloud/main.js',
   appId: process.env.APP_ID,
   masterKey: process.env.MASTER_KEY, //Add your master key here. Keep it secret!
@@ -26,7 +31,7 @@ var serverConfig = {
       apiKey: process.env.ANDROID_API_KEY
     },
     ios: {
-      pfx: 'push/PushCertificate.p12',
+      pfx: process.env.IOS_CERTIFICATE || 'push/PushCertificate.p12',
       passphrase: process.env.IOS_PASSPHRASE || '',
       topic: process.env.IOS_BUNDLE,
       production: process.env.IOS_PRODUCTION == 'true'

@@ -1,2 +1,2 @@
-mongo --eval "db.getCollection('_SCHEMA').drop()" dev
+mongo --eval "db.getCollection('pbserver__SCHEMA').drop()" dev
 mongorestore schema/

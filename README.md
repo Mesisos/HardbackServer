@@ -10,6 +10,37 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
 * `npm run local` or `heroku local` to run the web server locally in a Heroku environment
 * `npm test` to run behavior tests
 
+## Creating a new instance
+
+1. Create a new Heroku instance either by clicking on the following button or by going to [heroku.com/deploy](https://heroku.com/deploy).
+
+[![Deploy](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy)
+
+2. Set Config Variables in Settings to the following:
+  
+  - `APP_ID` = A short ID for the app, e.g. `pbserver`
+  - `APP_NAME` = Name of the product, e.g. `Paperback`
+  - `MASTER_KEY` = Administration pass key, must remain secret, e.g. `ZBv4Rsk7P`
+  - `MONGODB_URI` = MongoDB database url including username and password, can be shared across instances if they are properly prefixed
+  - `REDIS_URL` = Redis server url including username and password, can be shared across instances if they are properly prefixed
+  - `PARSE_MOUNT` = Url prefix for Parse access, most likely `/parse`
+  - `SERVER_ROOT` = External url used to access this instance, usually `http://<instance-name>.herokuapp.com`
+  - `ANDROID_SENDER_ID` = Android FCM Sender ID used for push notifications on Android, e.g. `12345678912`
+  - `ANDROID_API_KEY` = Android GCM Server key used for push notifications on Android, e.g. `AAAABcDaBCD:ABC12aBCDeF-AbC...`
+  - `VERIFICATION_EMAIL_SENDER` = Email address to send from for account verification, e.g. `support@example.com`
+  - `MAILGUN_API_KEY` = Mailgun Account API key to use for sending emails, e.g. `key-12345abcd123456abcd`
+  - `MAILGUN_DOMAIN` = Mailgun Account domain to send from, e.g. `sandboxabcd.mailgun.org`
+  - `IOS_CERTIFICATE` = Path to the iOS certificate file used for push notifications, defaults to `push/PushCertificate.p12`
+  - `IOS_BUNDLE` = Name of the iOS app bundle used for push notifications, e.g. `com.example.PaperbackApp`
+  - `IOS_PRODUCTION` = `true` for production push notification certificates, `false` for development certificates
+  - `IOS_PASSPHRASE` = Password for the iOS push notifications certificate
+  - `MONGODB_PREFIX` = _(new, optional)_ Prefix for MongoDB database collection names, allows sharing the same database across multiple instances, defaults to `APP_ID` + `_` (underscore)
+  - `REDIS_PREFIX` = _(new, optional)_ Prefix for redis server keys used for the kue queue system, defaults to `APP_ID` + `_kue` 
+
+3. Push the server code to Heroku via Git using the steps described on the project dashboard. Take note that you might need to update/change/add the push certificate file for iOS first.
+
+4. The server should now be operational and accessible via `http://<instance-name>.herokuapp.com`.
+
 ## MongoDB connection details
 
 You should have your `MONGODB_URI` set in the Heroku dashboard in the following
