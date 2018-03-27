@@ -260,7 +260,7 @@ function checkNameValidity(name, existingId) {
 
 // Jobs
 var jobs = kue.createQueue({
-  prefix: process.env.REDIS_PREFIX || (process.env.APP_ID + "_kue"),
+  prefix: process.env.REDIS_PREFIX || "q",
   redis: process.env.REDIS_URL
 });
 

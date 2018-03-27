@@ -8,7 +8,7 @@
     "human-time": "0.0.1",
     "json-property-filter": "^1.2.0",
     "kerberos": "0.0.23",
-    "kue": "^0.11.5",
+    "kue": "^0.11.6",
     "moment": "^2.18.1",
     "mustache-express": "^1.2.4",
     "parse": "^1.11.1",

@@ -22,7 +22,9 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
   - `APP_NAME` = Name of the product, e.g. `Paperback`
   - `MASTER_KEY` = Administration pass key, must remain secret, e.g. `ZBv4Rsk7P`
   - `MONGODB_URI` = MongoDB database url including username and password, can be shared across instances if they are properly prefixed
-  - `REDIS_URL` = Redis server url including username and password, can be shared across instances if they are properly prefixed
+  - `REDIS_URL` = Redis server url including username and password, can be shared across instances by using different database indices, e.g. `redis://10.0.0.0:6379/?db=0` or `redis://10.0.0.0:6379/?db=1`. To make sure instances are isolated,
+  use a different index for each instance. Default is index 0, Heroku Redis Premium
+  supports 512 database indices, from 0 to 511.
   - `PARSE_MOUNT` = Url prefix for Parse access, most likely `/parse`
   - `SERVER_ROOT` = External url used to access this instance, usually `http://<instance-name>.herokuapp.com`
   - `ANDROID_SENDER_ID` = Android FCM Sender ID used for push notifications on Android, e.g. `12345678912`
@@ -35,7 +37,8 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
   - `IOS_PASSPHRASE` = Password for the iOS push notifications certificate
   - `IOS_CERTIFICATE` = _(new, optional)_ Path to the iOS certificate file used for push notifications, defaults to `push/PushCertificate.p12`
   - `MONGODB_PREFIX` = _(new, optional)_ Prefix for MongoDB database collection names, allows sharing the same database across multiple instances, defaults to `APP_ID` + `_` (underscore)
-  - `REDIS_PREFIX` = _(new, optional)_ Prefix for redis server keys used for the kue queue system, defaults to `APP_ID` + `_kue` 
+  - `REDIS_PREFIX` = _(new, optional)_ Prefix for redis server keys used for the kue queue system, defaults to `q`, isolation between instances should be done via
+  database indices (see above)
 
 3. Push the server code to Heroku via Git using the steps described on the project dashboard. Take note that you might need to update/change/add the push certificate file for iOS first.
 

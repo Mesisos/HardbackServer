@@ -19,7 +19,7 @@ var mime = require('rest/interceptor/mime');
 var Parse = require('parse/node');
 var kue = require('kue');
 var jobs = kue.createQueue({
-  prefix: process.env.REDIS_PREFIX || (process.env.APP_ID + "_kue"),
+  prefix: process.env.REDIS_PREFIX || "q",
   redis: process.env.REDIS_URL
 });
 var Promise = Parse.Promise;
