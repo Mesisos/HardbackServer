@@ -30,10 +30,10 @@ Paperback Server using the [parse-server](https://github.com/ParsePlatform/parse
   - `VERIFICATION_EMAIL_SENDER` = Email address to send from for account verification, e.g. `support@example.com`
   - `MAILGUN_API_KEY` = Mailgun Account API key to use for sending emails, e.g. `key-12345abcd123456abcd`
   - `MAILGUN_DOMAIN` = Mailgun Account domain to send from, e.g. `sandboxabcd.mailgun.org`
-  - `IOS_CERTIFICATE` = Path to the iOS certificate file used for push notifications, defaults to `push/PushCertificate.p12`
   - `IOS_BUNDLE` = Name of the iOS app bundle used for push notifications, e.g. `com.example.PaperbackApp`
   - `IOS_PRODUCTION` = `true` for production push notification certificates, `false` for development certificates
   - `IOS_PASSPHRASE` = Password for the iOS push notifications certificate
+  - `IOS_CERTIFICATE` = _(new, optional)_ Path to the iOS certificate file used for push notifications, defaults to `push/PushCertificate.p12`
   - `MONGODB_PREFIX` = _(new, optional)_ Prefix for MongoDB database collection names, allows sharing the same database across multiple instances, defaults to `APP_ID` + `_` (underscore)
   - `REDIS_PREFIX` = _(new, optional)_ Prefix for redis server keys used for the kue queue system, defaults to `APP_ID` + `_kue` 
 
