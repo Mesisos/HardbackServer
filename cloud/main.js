@@ -257,6 +257,14 @@ function checkNameValidity(name, existingId) {
     );
 }
 
+function getTypeIdFromRequest(req) {
+  var typeId = req.params.typeId === undefined ?
+    undefined : Number(req.params.typeId);
+  if (typeId === undefined || isNaN(typeId)) {
+    typeId = undefined;
+  }
+  return typeId;
+}
 
 
 // Jobs
@@ -755,8 +763,11 @@ Parse.Cloud.define("findGames", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
 
+  var typeId = getTypeIdFromRequest(req);
+
   var configQuery = new Query(Config);
   configQuery
+    .equalTo("typeId", typeId)
     .equalTo("isRandom", true);
   
   respondWithGameList(req, res, user, configQuery, constants.FIND_GAME_PAGING);
@@ -766,8 +777,11 @@ Parse.Cloud.define("listInvites", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
   
+  var typeId = getTypeIdFromRequest(req);
+
   var configQuery = new Query(Config);
   configQuery
+    .equalTo("typeId", typeId)
     .equalTo("slots.userId", user.id);
   
   respondWithGameList(req, res, user, configQuery, constants.LIST_INVITES_PAGING);
@@ -854,6 +868,9 @@ function createConfigFromRequest(req) {
     }
   }
   config.set("fameCards", fameCards);
+
+  var typeId = getTypeIdFromRequest(req);
+  config.set("typeId", typeId);
 
   var userQuery = new Query(Parse.User);
   return userQuery
@@ -1055,6 +1072,12 @@ Parse.Cloud.beforeDelete(Game, function(req, res) {
       res.success();
     },
     function(error) {
+      console.error("Game beforeDelete error");
+      console.error("  config", configPromise);
+      console.error("  player", playerPromise);
+      console.error("  turn", turnPromise);
+      console.error("  lobby timeout job", lobbyTimeoutJobPromise);
+      console.error("  turn timeout job", turnTimeoutJobPromise);
       res.success(error);
     }
   );
@@ -1575,6 +1598,7 @@ Parse.Cloud.define("listGames", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
 
+  var typeId = getTypeIdFromRequest(req);
   var gameIds = req.params.gameIds;
   if (!Array.isArray(gameIds)) gameIds = null;
   
@@ -1607,6 +1631,11 @@ Parse.Cloud.define("listGames", function(req, res) {
     function(players) {
       games = players.map(function(player) {
         return player.get("game");
+      }).filter(function(game) {
+        if (!game) return false;
+        var config = game.get("config");
+        if (!config) return false;
+        return config.get("typeId") === typeId;
       });
 
       var playerQuery = new Query(Player);

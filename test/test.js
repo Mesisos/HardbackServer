@@ -334,10 +334,19 @@ function startGame(name, game, desc, customFunc) {
   internalStartGame(name, game, desc, customFunc, 0);
 }
 
-function listGames(name, games, desc, testFunc) {
+function listGames(name, gamesObj, desc, testFunc) {
   it(desc, function() {
     var req = {};
-    if (games) req.gameIds = games.map(function(game) { return game.id; });
+    if (gamesObj) {
+      var games = null;
+      if (Array.isArray(gamesObj)) {
+        games = gamesObj;
+      } else {
+        games = gamesObj.games;
+        req.typeId = gamesObj.typeId;
+      }
+      if (games) req.gameIds = games.map(function(game) { return game.id; });
+    }
     return parseCall(name, "listGames", req).then(
       function(entity) {
         var result = entityResult(entity, constants.t.GAME_LIST);
@@ -351,7 +360,7 @@ function listGames(name, games, desc, testFunc) {
 
 function getGame(name, game, desc, testFunc) {
   if (!desc) desc = 'returns the right game status to ' + name;
-  listGames(name, [game], desc, function(games) {
+  listGames(name, { games: [game], typeId: game.typeId }, desc, function(games) {
     games.should.have.length(1);
     testFunc(games[0]);
   });
@@ -1070,80 +1079,110 @@ describe('game flow', function() {
 
   });
 
-  describe('turn order with complex slots', function() {
 
-    var game = {};
+  describe('typeId filtering', function() {
 
-    it('creates a game and gets the game id with Alice', function() {
+    var gameDefault = {};
+    var gameTypeOne = { typeId: 1 };
+
+    purgeRandom();
+
+    it('creates a default id game with Alice', function() {
       return parseCall("Alice", "createGame", {
         "slots": [
-          { "type": "invite", "displayName": "Carry" },
-          { "type": "open" },
-          { "type": "invite", "displayName": "Bobzor" },
           { "type": "creator" },
+          { "type": "open" },
+          { "type": "none" },
+          { "type": "none" }
         ],
         "turnMaxSec": 60
       }).then(
         function(entity) {
-          game.id = entityGameId(entity);
+          gameDefault.id = entityGameId(entity);
           var result = entityResult(entity, constants.t.GAME_CREATED);
           result.game.state.should.equal(GameState.Lobby);
         }
       );
     });
 
-    joinGame("Bob", game);
-    joinGame("Dan", game);
-    joinGame("Carol", game);
-    
-    getGame("Alice", game, '', function(game) {
-      game.state.should.equal(GameState.Running);
-      game.turn.should.equal(0);
+    it('creates a typeId 1 game with Alice', function() {
+      return parseCall("Alice", "createGame", {
+        "typeId": gameTypeOne.typeId,
+        "slots": [
+          { "type": "creator" },
+          { "type": "open" },
+          { "type": "none" },
+          { "type": "none" }
+        ],
+        "turnMaxSec": 60
+      }).then(
+        function(entity) {
+          gameTypeOne.id = entityGameId(entity);
+          var result = entityResult(entity, constants.t.GAME_CREATED);
+          result.game.state.should.equal(GameState.Lobby);
+        }
+      );
     });
 
-    var turnNumber = 0;
+    getGame("Alice", gameDefault, 'does not return a typeId for Alice', function(game) {
+      should.exist(game);
 
-    makeTurn("Alice", game, "deny",  turnNumber);
-    makeTurn("Bob",   game, "deny",  turnNumber);
-    makeTurn("Dan",   game, "deny",  turnNumber);
-    makeTurn("Carol", game, "allow", turnNumber++);
-    makeTurn("Alice", game, "deny",  turnNumber);
-    makeTurn("Bob",   game, "deny",  turnNumber);
-    makeTurn("Carol", game, "deny",  turnNumber);
-    makeTurn("Dan",   game, "allow", turnNumber++);
-    makeTurn("Alice", game, "deny",  turnNumber);
-    makeTurn("Bob",   game, "allow", turnNumber++);
-    makeTurn("Bob",   game, "deny",  turnNumber);
-    makeTurn("Alice", game, "allow", turnNumber++);
-    makeTurn("Carol", game, "allow", turnNumber++);
-    makeTurn("Dan",   game, "allow", turnNumber++);
-    makeTurn("Bob",   game, "allow", turnNumber++);
-    makeTurn("Alice", game, "allow", turnNumber++);
-    makeTurn("Carol", game, "allow", turnNumber++);
-    makeTurn("Dan",   game, "allow", turnNumber++);
-    makeTurn("Bob",   game, "allow", turnNumber++);
-    makeTurn("Alice", game, "allow", turnNumber++);
-    makeTurn("Carol", game, "allow", turnNumber++);
-    makeTurn("Dan",   game, "allow", turnNumber++);
-    makeTurn("Bob",   game, "allow", turnNumber++);
-    makeTurn("Alice", game, "allow", turnNumber++);
-
-    getGame("Dan", game, '', function(game) {
-      game.state.should.equal(GameState.Running);
-      game.turn.should.equal(16);
-    });
-    
-    makeTurn("Carol", game, "finish", turnNumber++);
-
-    getGame("Bob", game, 'should get the ended game state with one more turn', function(game) {
-      game.state.should.equal(GameState.Ended);
-      game.turn.should.equal(17);
+      game.should.have.property("config");
+      game.config.should.not.have.property("typeId");
     });
 
-    makeTurn("Alice", game, "invalid");
-    makeTurn("Bob",   game, "invalid");
-    makeTurn("Carol", game, "invalid");
-    makeTurn("Dan",   game, "invalid");
+    listGames("Alice", [gameDefault],
+      "should return the game in the list of active games for Alice",
+      function(games) {
+        games.should.have.length(1);
+        gameDefault.id.should.equal(games[0].objectId);
+      }
+    );
+
+    listGames("Alice", [gameTypeOne],
+      "should not return typeId 1 game in the list of default active games for Alice",
+      function(games) {
+        games.should.have.length(0);
+      }
+    );
+
+    getGame("Alice", gameTypeOne, 'does return typeId 1 for Alice if requested', function(game) {
+      should.exist(game);
+
+      game.should.have.property("config");
+      game.config.should.have.property("typeId");
+      game.config.typeId.should.equal(1);
+    });
+
+    listGames("Alice", { typeId: 1, games: [gameTypeOne] },
+      "should return typeId 1 game when filtered to typeId 1 games for Alice",
+      function(games) {
+        games.should.have.length(1);
+        gameTypeOne.id.should.equal(games[0].objectId);
+      }
+    );
+
+    it('finds only the default game by default with Bob', function() {
+      return parseCall("Bob", "findGames", {}).then(
+        function(entity) {
+          var result = entityResult(entity, constants.t.GAME_LIST);
+          result.should.have.property("games");
+          result.games.should.have.length(1);
+          gameDefault.id.should.equal(result.games[0].objectId);
+        }
+      );
+    });
+
+    it('finds only the typeId 1 game when filtered with Bob', function() {
+      return parseCall("Bob", "findGames", { typeId: 1 }).then(
+        function(entity) {
+          var result = entityResult(entity, constants.t.GAME_LIST);
+          result.should.have.property("games");
+          result.games.should.have.length(1);
+          gameTypeOne.id.should.equal(result.games[0].objectId);
+        }
+      );
+    });
 
   });
 

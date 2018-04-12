@@ -321,6 +321,9 @@ Change user preferences, currently only supports changing the avatar.
 ### Request
 ```
 {
+  // Optional game type identifier. Defaults to undefined.
+  // This can then be filtered on later.
+  "typeId": integer,
 
   // You can provide any number of slots (within reason)
   // for the game, but there has to be exactly
@@ -483,6 +486,8 @@ Find games open to the public, i.e. with at least one open-type slot.
 ### Request
 ```
 {
+  // Game type id to filter on (optional)
+  "typeId: integer
   // How many games to return sorted by least recent first
   "limit": integer (default 20, min 1, max 100)
   // How many games to skip (for pagination)
@@ -518,6 +523,8 @@ List games with an invite slot for the calling user.
 ### Request
 ```
 {
+  // Game type id to filter on (optional)
+  "typeId: integer
   // How many games to return sorted by most recent first
   "limit": integer (default 20, min 1, max 100)
   // How many games to skip (for pagination)
@@ -545,6 +552,8 @@ List all the games the logged-in user is currently participating in.
 ### Request
 ```
 {
+  // Game type id to filter on (optional)
+  "typeId: integer
   // How many games to return sorted by most recent first
   "limit": integer (default 20, min 1, max 100)
   // How many games to skip (for pagination)
@@ -581,6 +590,8 @@ List all the games the logged-in user is currently participating in.
       "joined": true,
 
       "config": [
+        // Game type id, if it exists.
+        "typeId": integer
         "slots": [{
               // See "Slot Type" above.
               "type": string,

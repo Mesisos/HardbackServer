@@ -90,7 +90,8 @@
 		}
 	},
 	"slots": "array",
-	"playerNum": "number"
+	"playerNum": "number",
+	"typeId": "number"
 }
 {
 	"_id": "Player",
