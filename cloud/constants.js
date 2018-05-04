@@ -195,6 +195,7 @@ module.exports = Object.freeze({
     CONTACT_ADDED: { id: 402 },
     CONTACT_BLOCKED: { id: 403 },
 
+    PUSH_TOKEN_SET: { id: 500 },
 
 
     // Errors
@@ -281,6 +282,10 @@ module.exports = Object.freeze({
     },
     CONTACT_NOT_FOUND: { id: 1404, m:
       "Contact not found."
+    },
+
+    PUSH_TOKEN_ERROR: { id: 1500, m:
+      "Error occurred while setting push token."
     }
 
   }

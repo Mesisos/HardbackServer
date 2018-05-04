@@ -840,6 +840,37 @@ indexes are first, then it wraps around.
 ```
 
 
+## `storePushToken`
+Stores a token for push notifications in the database.
+
+Make sure you've sent an `X-Parse-Installation-Id` header with login and signup
+requests, so the server can have a unique installation ID for the device.
+
+Here is an example on how to generate the installation ID:
+<https://github.com/parse-community/Parse-SDK-JS/blob/master/src/InstallationController.js#L18..L32>
+
+If you don't send an installation ID along with your signup and login requests,
+storing the push token will fail.
+
+### Request
+```
+{
+  "deviceToken": "Firebase registration token here",
+  "pushType": "gcm"    // Optional, defaults to "gcm"
+}
+```
+
+Note that `gcm` should be used as the `pushType` not only for GCM, but also for
+FCM/Firebase push notifications, as they share the same push code.
+
+### Response
+```
+{
+  "code": PUSH_TOKEN_SET / PUSH_TOKEN_ERROR | INVALID_PARAMETER
+}
+```
+
+
 
 
 

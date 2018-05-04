@@ -575,6 +575,75 @@ function respond(res, message, data, filter) {
   res.success(data);
 }
 
+
+Parse.Cloud.define("storePushToken", function(req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+
+  var deviceToken = req.params.deviceToken ? String(req.params.deviceToken) : null;
+  var pushType = req.params.pushType ? String(req.params.pushType) : null;
+  if (!deviceToken) {
+    respondError(res, constants.t.INVALID_PARAMETER);
+    return;
+  }
+  if (!pushType) pushType = "gcm";
+  
+  var deviceType;
+  switch (pushType) {
+    case "gcm":
+      deviceType = "android";
+      break;
+    default:
+      respondError(res, constants.t.INVALID_PARAMETER);
+      return;
+  }
+  
+  var sessionToken = user.get("sessionToken");
+  var sessionQuery = new Query(Parse.Session);
+  var installationId;
+  return sessionQuery
+    .equalTo("sessionToken", sessionToken)
+    .first()
+    .then(
+      function(session) {
+        if (!session) return Promise.reject(new CodedError(constants.t.PUSH_TOKEN_ERROR));
+
+        installationId = session.get("installationId");
+        var instQuery = new Query(Parse.Installation);
+        return instQuery
+          .equalTo("installationId", installationId)
+          .first()
+      }
+    )
+    .then(
+      function(inst) {
+        if (!inst) {
+          /* Installation ID is not in database, add it */
+          var inst = new Parse.Object("_Installation");
+          inst.set("installationId", installationId);
+          inst.set("userId", user.get("username"));
+        }
+        return inst;
+      }
+    )
+    .then(
+      function(inst) {
+        /* Update token on given _Installation table row */
+        inst.set("deviceToken", deviceToken);
+        inst.set("pushType", pushType);
+        inst.set("deviceType", deviceType);
+        return inst.save();
+      }
+    )
+    .then(
+      function() {
+        respond(res, constants.t.PUSH_TOKEN_SET, {});
+      },
+      respondError(res)
+    );
+});
+
+
 Parse.Cloud.define("checkNameFree", function(req, res) {
   
   var name = !req.params.displayName ? null : String(req.params.displayName);
