@@ -576,9 +576,8 @@ function respond(res, message, data, filter) {
 }
 
 
-function updateFirebaseTokens(inst, user, fcmSenderId, deviceToken) {
-  /* Update tokens on given _Installation table row */
-  inst.set("GCMSenderId", fcmSenderId);
+function updateFirebaseToken(inst, user, deviceToken) {
+  /* Update token on given _Installation table row */
   inst.set("deviceToken", deviceToken);
   inst.set("pushType", "gcm");
 
@@ -593,7 +592,7 @@ function updateFirebaseTokens(inst, user, fcmSenderId, deviceToken) {
     })
     .catch(function(err) {
       /* Something went wrong while saving */
-      console.log("*** ERROR in updateFirebaseTokens: " + err.toString());
+      console.log("*** ERROR in updateFirebaseToken: " + err.toString());
       return Promise.reject(err);
     });
 
@@ -605,7 +604,6 @@ Parse.Cloud.define("storeFirebaseToken", function (req, res) {
   if (errorOnInvalidUser(user, res)) return;
 
   var installationId = String(req.params.installationId);
-  var fcmSenderId = String(req.params.fcmSenderId);
   var deviceToken = String(req.params.deviceToken);
 
   var instQuery = new Parse.Query(Parse.Installation);
@@ -616,7 +614,7 @@ Parse.Cloud.define("storeFirebaseToken", function (req, res) {
        * Installation ID is already in database, update tokens and make sure
        * that the installation ID is linked to the user's current session.
        */
-      updateFirebaseTokens(inst, user, fcmSenderId, deviceToken)
+      updateFirebaseToken(inst, user, deviceToken)
         .then(function() { res.success(); })
         .catch(function() { respondError(res); });
     })
@@ -626,7 +624,7 @@ Parse.Cloud.define("storeFirebaseToken", function (req, res) {
       inst.set("installationId", installationId);
       inst.set("userId", user.id);
 
-      updateFirebaseTokens(inst, user, fcmSenderId, deviceToken)
+      updateFirebaseToken(inst, user, deviceToken)
         .then(function() { res.success(); })
         .catch(function() { respondError(res); });
     });
