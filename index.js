@@ -281,7 +281,7 @@ if (process.env.TESTING === "true") {
         
     var userQuery = new Parse.Query(Parse.Object.extend("User"));
     userQuery
-      .equalTo("username", "Bob");
+      .equalTo("username", "carol@example.com");
 
     var sessionQuery = new Parse.Query(Parse.Session);
     sessionQuery

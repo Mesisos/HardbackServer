@@ -576,56 +576,71 @@ function respond(res, message, data, filter) {
 }
 
 
-function updateFirebaseToken(inst, user, deviceToken, installationId) {
-  /* Update token on given _Installation table row */
-  inst.set("deviceToken", deviceToken);
-  inst.set("pushType", "gcm");
-
-  return inst.save(null, { useMasterKey: true })
-    .then(function() {
-      /* Make sure the installationId is linked to the user's current session */
-      Parse.Session.current()
-        .then(function(session) {
-          session.set("installationId", installationId);
-          session.save();
-        });
-    })
-    .catch(function(err) {
-      /* Something went wrong while saving */
-      console.log("*** ERROR in updateFirebaseToken: " + err.toString());
-      return Promise.reject(err);
-    });
-}
-
-Parse.Cloud.define("storeFirebaseToken", function (req, res) {
+Parse.Cloud.define("storePushToken", function(req, res) {
   var user = req.user;
   if (errorOnInvalidUser(user, res)) return;
 
-  var installationId = String(req.params.installationId);
-  var deviceToken = String(req.params.deviceToken);
+  var deviceToken = req.params.deviceToken ? String(req.params.deviceToken) : null;
+  var pushType = req.params.pushType ? String(req.params.pushType) : null;
+  if (!deviceToken) {
+    respondError(res, constants.t.INVALID_PARAMETER);
+    return;
+  }
+  if (!pushType) pushType = "gcm";
+  
+  var deviceType;
+  switch (pushType) {
+    case "gcm":
+      deviceType = "android";
+      break;
+    default:
+      respondError(res, constants.t.INVALID_PARAMETER);
+      return;
+  }
+  
+  var sessionToken = user.get("sessionToken");
+  var sessionQuery = new Query(Parse.Session);
+  var installationId;
+  return sessionQuery
+    .equalTo("sessionToken", sessionToken)
+    .first()
+    .then(
+      function(session) {
+        if (!session) return Promise.reject(new CodedError(constants.t.PUSH_TOKEN_ERROR));
 
-  var instQuery = new Parse.Query(Parse.Installation);
-  instQuery
-    .get(installationId, { useMasterKey: true })
-    .then(function(inst) {
-      /*
-       * Installation ID is already in database, update tokens and make sure
-       * that the installation ID is linked to the user's current session.
-       */
-      return updateFirebaseToken(inst, user, deviceToken, installationId)
-        .then(function() { respond(res, constants.t.PUSH_TOKEN_SET) },
-          respondError(res, constants.t.PUSH_TOKEN_ERROR));
-    })
-    .catch(function() {
-      /* Installation ID is not in database, add it and link it to the session */
-      var inst = new Parse.Object("_Installation");
-      inst.set("installationId", installationId);
-      inst.set("userId", user.id);
-
-      return updateFirebaseToken(inst, user, deviceToken, installationId)
-        .then(function() { respond(res, constants.t.PUSH_TOKEN_SET) },
-          respondError(res, constants.t.PUSH_TOKEN_ERROR));
-    });
+        installationId = session.get("installationId");
+        var instQuery = new Query(Parse.Installation);
+        return instQuery
+          .equalTo("installationId", installationId)
+          .first()
+      }
+    )
+    .then(
+      function(inst) {
+        if (!inst) {
+          /* Installation ID is not in database, add it */
+          var inst = new Parse.Object("_Installation");
+          inst.set("installationId", installationId);
+          inst.set("userId", user.get("username"));
+        }
+        return inst;
+      }
+    )
+    .then(
+      function(inst) {
+        /* Update token on given _Installation table row */
+        inst.set("deviceToken", deviceToken);
+        inst.set("pushType", pushType);
+        inst.set("deviceType", deviceType);
+        return inst.save();
+      }
+    )
+    .then(
+      function() {
+        respond(res, constants.t.PUSH_TOKEN_SET, {});
+      },
+      respondError(res)
+    );
 });
 
 
