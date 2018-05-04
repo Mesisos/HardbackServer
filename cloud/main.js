@@ -613,8 +613,8 @@ Parse.Cloud.define("storeFirebaseToken", function (req, res) {
        * that the installation ID is linked to the user's current session.
        */
       return updateFirebaseToken(inst, user, deviceToken)
-        .then(function() { res.success(); })
-        .catch(function() { respondError(res); });
+        .then(function() { respond(res, constants.t.PUSH_TOKEN_SET) },
+          respondError(res, constants.t.PUSH_TOKEN_ERROR));
     })
     .catch(function() {
       /* Installation ID is not in database, add it and link it to the session */
@@ -623,11 +623,9 @@ Parse.Cloud.define("storeFirebaseToken", function (req, res) {
       inst.set("userId", user.id);
 
       return updateFirebaseToken(inst, user, deviceToken)
-        .then(function() { res.success(); })
-        .catch(function() { respondError(res); });
+        .then(function() { respond(res, constants.t.PUSH_TOKEN_SET) },
+          respondError(res, constants.t.PUSH_TOKEN_ERROR));
     });
-
-  res.success();
 });
 
 
