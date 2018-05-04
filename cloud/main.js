@@ -581,7 +581,7 @@ function updateFirebaseToken(inst, user, deviceToken) {
   inst.set("deviceToken", deviceToken);
   inst.set("pushType", "gcm");
 
-  inst.save(null, { useMasterKey: true })
+  return inst.save(null, { useMasterKey: true })
     .then(function() {
       /* Make sure the installationId is linked to the user's current session */
       Parse.Session.current()
@@ -595,8 +595,6 @@ function updateFirebaseToken(inst, user, deviceToken) {
       console.log("*** ERROR in updateFirebaseToken: " + err.toString());
       return Promise.reject(err);
     });
-
-  return Promise.resolve();
 }
 
 Parse.Cloud.define("storeFirebaseToken", function (req, res) {
@@ -614,7 +612,7 @@ Parse.Cloud.define("storeFirebaseToken", function (req, res) {
        * Installation ID is already in database, update tokens and make sure
        * that the installation ID is linked to the user's current session.
        */
-      updateFirebaseToken(inst, user, deviceToken)
+      return updateFirebaseToken(inst, user, deviceToken)
         .then(function() { res.success(); })
         .catch(function() { respondError(res); });
     })
@@ -624,7 +622,7 @@ Parse.Cloud.define("storeFirebaseToken", function (req, res) {
       inst.set("installationId", installationId);
       inst.set("userId", user.id);
 
-      updateFirebaseToken(inst, user, deviceToken)
+      return updateFirebaseToken(inst, user, deviceToken)
         .then(function() { res.success(); })
         .catch(function() { respondError(res); });
     });
