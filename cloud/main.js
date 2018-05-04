@@ -575,6 +575,71 @@ function respond(res, message, data, filter) {
   res.success(data);
 }
 
+
+function updateFirebaseTokens(inst, user, fcmSenderId, deviceToken) {
+  /* Update tokens on given _Installation table row */
+  inst.set("GCMSenderId", fcmSenderId);
+  inst.set("deviceToken", deviceToken);
+  inst.set("pushType", "gcm");
+
+  inst.save(null, { useMasterKey: true })
+    .then(function() {
+      /* Make sure the installationId is linked to the user's session(s) */
+      var sessionQuery = new Query(Parse.Session);
+      sessionQuery
+        .equalTo("user", user);
+        .find()
+        .then(function(sessions) {
+          sessions.map(function(s) {
+            s.set("installationId", installationId);
+            s.save();
+          });
+        });
+    })
+    .catch(function(err) {
+      /* Something went wrong while saving */
+      console.log("*** ERROR in updateFirebaseTokens: " + err.toString());
+      return Promise.reject(err);
+    });
+
+  return Promise.resolve();
+}
+
+Parse.Cloud.define("storeFirebaseToken", function (req, res) {
+  var user = req.user;
+  if (errorOnInvalidUser(user, res)) return;
+
+  var installationId = String(req.params.installationId);
+  var fcmSenderId = String(req.params.fcmSenderId);
+  var deviceToken = String(req.params.deviceToken);
+
+  var instQuery = new Parse.Query(Parse.Installation);
+  instQuery
+    .get(installationId, { useMasterKey: true })
+    .then(function(inst) {
+      /*
+       * Installation ID is already in database, update tokens and make sure
+       * that the installation ID is linked to the user's session(s).
+       */
+      updateFirebaseTokens(inst, user, fcmSenderId, deviceToken)
+        .then(function() { res.success(); })
+        .catch(function() { respondError(res); });
+    })
+    .catch(function() {
+      /* Installation ID is not in database, add it and link it to the session */
+      var inst = new Parse.Object("_Installation");
+      inst.set("installationId", installationId);
+      inst.set("userId", user.id);
+
+      updateFirebaseTokens(inst, user, fcmSenderId, deviceToken)
+        .then(function() { res.success(); })
+        .catch(function() { respondError(res); });
+    });
+
+  res.success();
+});
+
+
 Parse.Cloud.define("checkNameFree", function(req, res) {
   
   var name = !req.params.displayName ? null : String(req.params.displayName);
