@@ -584,16 +584,11 @@ function updateFirebaseTokens(inst, user, fcmSenderId, deviceToken) {
 
   inst.save(null, { useMasterKey: true })
     .then(function() {
-      /* Make sure the installationId is linked to the user's session(s) */
-      var sessionQuery = new Query(Parse.Session);
-      sessionQuery
-        .equalTo("user", user);
-        .find()
-        .then(function(sessions) {
-          sessions.map(function(s) {
-            s.set("installationId", installationId);
-            s.save();
-          });
+      /* Make sure the installationId is linked to the user's current session */
+      Parse.Session.current()
+        .then(function(session) {
+          session.set("installationId", installationId);
+          session.save();
         });
     })
     .catch(function(err) {
@@ -619,7 +614,7 @@ Parse.Cloud.define("storeFirebaseToken", function (req, res) {
     .then(function(inst) {
       /*
        * Installation ID is already in database, update tokens and make sure
-       * that the installation ID is linked to the user's session(s).
+       * that the installation ID is linked to the user's current session.
        */
       updateFirebaseTokens(inst, user, fcmSenderId, deviceToken)
         .then(function() { res.success(); })
