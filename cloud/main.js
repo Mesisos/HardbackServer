@@ -576,7 +576,7 @@ function respond(res, message, data, filter) {
 }
 
 
-function updateFirebaseToken(inst, user, deviceToken) {
+function updateFirebaseToken(inst, user, deviceToken, installationId) {
   /* Update token on given _Installation table row */
   inst.set("deviceToken", deviceToken);
   inst.set("pushType", "gcm");
@@ -612,7 +612,7 @@ Parse.Cloud.define("storeFirebaseToken", function (req, res) {
        * Installation ID is already in database, update tokens and make sure
        * that the installation ID is linked to the user's current session.
        */
-      return updateFirebaseToken(inst, user, deviceToken)
+      return updateFirebaseToken(inst, user, deviceToken, installationId)
         .then(function() { respond(res, constants.t.PUSH_TOKEN_SET) },
           respondError(res, constants.t.PUSH_TOKEN_ERROR));
     })
@@ -622,7 +622,7 @@ Parse.Cloud.define("storeFirebaseToken", function (req, res) {
       inst.set("installationId", installationId);
       inst.set("userId", user.id);
 
-      return updateFirebaseToken(inst, user, deviceToken)
+      return updateFirebaseToken(inst, user, deviceToken, installationId)
         .then(function() { respond(res, constants.t.PUSH_TOKEN_SET) },
           respondError(res, constants.t.PUSH_TOKEN_ERROR));
     });
