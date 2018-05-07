@@ -1185,15 +1185,19 @@ function pushToFCM(recipient, data) {
       },
       json: {
         "data": data,
+        "notification": {
+          "title": process.env.APP_NAME,
+          "text": data.msg
+        },
         "to": recipient
       }
     },
     function(err, resp, body) {
-      if (!err && resp.statusCode == 200) {
+      if (!err && resp.statusCode == 200 && body && body.success) {
         console.log('Push successful!');
-        resolve(true);
+        resolve();
       } else {
-        console.log('Push failed!');
+        console.log('Push failed:' + util.inspect(body.results));
         reject(err);
       }
     });
@@ -1217,18 +1221,25 @@ function sendPush(installationQuery, message, data) {
     data: filtered
   };
 
-  /* Get recipient's registration token from the Installation table */
-  var recipient = installationQuery.first().get('deviceToken');
-
   // console.log("Push suppressed:", obj); return;
 
+  // Avoiding Parse push functionality for now
   //return Parse.Push.send({
   //  where: installationQuery,
   //  data: obj
   //}, { useMasterKey: true });
 
-  // TODO: Check pushType in installationQuery and use the appropriate function!
-  return pushToFCM(recipient, obj);
+  /* Get recipient's registration token from the Installation table */
+  return installationQuery
+    .first()
+    .then(
+      function(installation)
+      {
+        // Check pushType in installationQuery and use the appropriate function!
+        var token = installation.get('deviceToken');
+        pushToFCM(token, obj);
+      }
+    );
 }
 
 function notifyUsers(users, message, data) {
