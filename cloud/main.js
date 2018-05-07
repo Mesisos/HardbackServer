@@ -5,6 +5,7 @@ var constants = require('./constants.js');
 var kue = require('kue');
 var JsonPropertyFilter = require("json-property-filter");
 var Mustache = require("mustache");
+var request = require('request');
 
 // Change "a few seconds ago" to "moments ago"
 moment.localeData('en')._relativeTime.s = "moments";
@@ -1168,9 +1169,44 @@ function getGameInfo(game, playerCount, player) {
   };
 }
 
+/*
+ * Push a notification to Google FCM server
+ * <recipient> is a registration token from the Installation table (deviceToken) that was previously
+ * set via the `storePushToken` API call, <data> is the object sent with the notification.
+ */
+function pushToFCM(recipient, data) {
+  return new Parse.Promise(function (resolve, reject) {
+    request({
+      uri: 'https://gcm-http.googleapis.com/gcm/send',
+      method: 'POST',
+      headers: {
+        "Authorization": "key=" + (process.env.ANDROID_API_KEY || ""),
+        "Content-Type": "application/json"
+      },
+      json: {
+        "data": data,
+        "notification": {
+          "title": process.env.APP_NAME,
+          "text": data.msg
+        },
+        "to": recipient
+      }
+    },
+    function(err, resp, body) {
+      if (!err && resp.statusCode == 200 && body && body.success) {
+        console.log('Push successful!');
+        resolve();
+      } else {
+        console.log('Push failed:' + util.inspect(body.results));
+        reject(err);
+      }
+    });
+  });
+}
+
 function sendPush(installationQuery, message, data) {
   var filtered = filterObject(data);
-  
+
   var msg;
   if (message.m) {
     msg = Mustache.render(message.m, filtered);
@@ -1187,10 +1223,23 @@ function sendPush(installationQuery, message, data) {
 
   // console.log("Push suppressed:", obj); return;
 
-  return Parse.Push.send({
-    where: installationQuery,
-    data: obj
-  }, { useMasterKey: true });
+  // Avoiding Parse push functionality for now
+  //return Parse.Push.send({
+  //  where: installationQuery,
+  //  data: obj
+  //}, { useMasterKey: true });
+
+  /* Get recipient's registration token from the Installation table */
+  return installationQuery
+    .first()
+    .then(
+      function(installation)
+      {
+        // Check pushType in installationQuery and use the appropriate function!
+        var token = installation.get('deviceToken');
+        pushToFCM(token, obj);
+      }
+    );
 }
 
 function notifyUsers(users, message, data) {
