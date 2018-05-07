@@ -5,6 +5,7 @@ var constants = require('./constants.js');
 var kue = require('kue');
 var JsonPropertyFilter = require("json-property-filter");
 var Mustache = require("mustache");
+var request = require('request');
 
 // Change "a few seconds ago" to "moments ago"
 moment.localeData('en')._relativeTime.s = "moments";
@@ -1168,9 +1169,40 @@ function getGameInfo(game, playerCount, player) {
   };
 }
 
+/*
+ * Push a notification to Google FCM server
+ * <recipient> is a registration token from the Installation table (deviceToken) that was previously
+ * set via the `storePushToken` API call, <data> is the object sent with the notification.
+ */
+function pushToFCM(recipient, data) {
+  return new Parse.Promise(function (resolve, reject) {
+    request({
+      uri: 'https://gcm-http.googleapis.com/gcm/send',
+      method: 'POST',
+      headers: {
+        "Authorization": "key=" + (process.env.ANDROID_API_KEY || ""),
+        "Content-Type": "application/json"
+      },
+      json: {
+        "data": data,
+        "to": recipient
+      }
+    },
+    function(err, resp, body) {
+      if (!err && resp.statusCode == 200) {
+        console.log('Push successful!');
+        resolve(true);
+      } else {
+        console.log('Push failed!');
+        reject(err);
+      }
+    });
+  });
+}
+
 function sendPush(installationQuery, message, data) {
   var filtered = filterObject(data);
-  
+
   var msg;
   if (message.m) {
     msg = Mustache.render(message.m, filtered);
@@ -1185,12 +1217,18 @@ function sendPush(installationQuery, message, data) {
     data: filtered
   };
 
+  /* Get recipient's registration token from the Installation table */
+  var recipient = installationQuery.first().get('deviceToken');
+
   // console.log("Push suppressed:", obj); return;
 
-  return Parse.Push.send({
-    where: installationQuery,
-    data: obj
-  }, { useMasterKey: true });
+  //return Parse.Push.send({
+  //  where: installationQuery,
+  //  data: obj
+  //}, { useMasterKey: true });
+
+  // TODO: Check pushType in installationQuery and use the appropriate function!
+  return pushToFCM(recipient, obj);
 }
 
 function notifyUsers(users, message, data) {
