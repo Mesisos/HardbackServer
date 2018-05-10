@@ -1187,7 +1187,7 @@ function pushToFCM(recipient, data) {
         "data": data,
         "notification": {
           "title": process.env.APP_NAME,
-          "text": data.msg
+          "text": data.alert
         },
         "to": recipient
       }
