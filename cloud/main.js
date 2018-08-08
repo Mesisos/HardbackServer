@@ -1197,7 +1197,7 @@ function pushToFCM(recipient, data) {
         console.log('Push successful!');
         resolve();
       } else {
-        console.log('Push failed:' + util.inspect(body.results));
+        console.log('Push failed:' + util.inspect(body.results) + " Token: " + recipient);
         reject(err);
       }
     });
