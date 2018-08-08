@@ -1252,7 +1252,7 @@ function notifyUsers(users, message, data) {
         .equalTo("user", user);
       
       var installationQuery = new Query(Parse.Installation);
-      installationQuery.matchesKeyInQuery("deviceToken", "deviceToken", sessionQuery);
+      installationQuery.matchesKeyInQuery("installationId", "installationId", sessionQuery);
 
       var others = users
         .filter(function(filterUser) {
