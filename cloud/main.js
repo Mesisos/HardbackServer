@@ -1268,7 +1268,7 @@ function notifyUsers(users, message, data) {
             prev + " and " + cur
           );
         }, "")
-      console.log("Installation ID:" + installationQuery.get("installationId"));
+      //console.log("Installation ID:" + installationQuery.get("installationId"));
       var personalizedData = Object.assign({}, data);
       personalizedData.others = others;
 
