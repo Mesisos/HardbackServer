@@ -1236,7 +1236,7 @@ function sendPush(installationQuery, message, data) {
     .then(
       function(installation)
       {
-		console.log("Installation:" + installation.get('_Id');
+		//console.log("Installation:" + installation.get('_Id');
         // Check pushType in installationQuery and use the appropriate function!
         var token = installation.get('deviceToken');
         pushToFCM(token, obj);
