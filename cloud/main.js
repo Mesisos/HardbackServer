@@ -1058,7 +1058,7 @@ function createGameFromConfig(user, config) {
           function(invite) {
             var inviteUsers = invites.map(function(inviteSlot) {
               var invitee = new Parse.User();
-			  console.log("Invited Players ID:" + invitee.id)
+			  console.log("Invited Players ID:" + inviteSlot.userId);
               invitee.id = inviteSlot.userId;
               return invitee;
             });
@@ -1268,7 +1268,7 @@ function notifyUsers(users, message, data) {
             prev + " and " + cur
           );
         }, "")
-      console.log("Installation ID:" + installationQuery + " Presonal Data:" + personalizedData);
+      console.log("Installation ID:" + installationQuery.get("installationId"));
       var personalizedData = Object.assign({}, data);
       personalizedData.others = others;
 
