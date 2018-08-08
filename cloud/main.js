@@ -1058,7 +1058,8 @@ function createGameFromConfig(user, config) {
           function(invite) {
             var inviteUsers = invites.map(function(inviteSlot) {
               var invitee = new Parse.User();
-              invitee.id = inviteSlot.userId;;
+			  console.log("Invited Players ID:" + invitee.id)
+              invitee.id = inviteSlot.userId;
               return invitee;
             });
             return notifyUsers(inviteUsers, constants.t.GAME_INVITE, {
@@ -1235,6 +1236,7 @@ function sendPush(installationQuery, message, data) {
     .then(
       function(installation)
       {
+		console.log("Installation:" + installation);
         // Check pushType in installationQuery and use the appropriate function!
         var token = installation.get('deviceToken');
         pushToFCM(token, obj);
@@ -1266,7 +1268,7 @@ function notifyUsers(users, message, data) {
             prev + " and " + cur
           );
         }, "")
-      
+      console.log("Installation ID:" + installationQuery + " Presonal Data:" + personalizedData);
       var personalizedData = Object.assign({}, data);
       personalizedData.others = others;
 
