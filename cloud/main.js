@@ -1236,7 +1236,7 @@ function sendPush(installationQuery, message, data) {
     .then(
       function(installation)
       {
-		console.log("Installation:" + installation);
+		console.log("Installation:" + installation.get('_Id');
         // Check pushType in installationQuery and use the appropriate function!
         var token = installation.get('deviceToken');
         pushToFCM(token, obj);
@@ -1252,7 +1252,7 @@ function notifyUsers(users, message, data) {
         .equalTo("user", user);
       
       var installationQuery = new Query(Parse.Installation);
-      installationQuery.matchesKeyInQuery("installationId", "installationId", sessionQuery);
+      installationQuery.matchesKeyInQuery("deviceToken", "deviceToken", sessionQuery);
 
       var others = users
         .filter(function(filterUser) {
