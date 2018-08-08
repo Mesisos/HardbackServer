@@ -1250,10 +1250,10 @@ function notifyUsers(users, message, data) {
       var sessionQuery = new Query(Parse.Session);
       sessionQuery
         .equalTo("user", user);
-      console.log("SessionID:" + Parse.Session._getId());
+      //console.log("SessionID:" + Parse.Session._getId());
       var installationQuery = new Query(Parse.Installation);
       installationQuery.matchesKeyInQuery("installationId", "installationId", sessionQuery);
-
+	  console.log("User Stuff" + user.id);
       var others = users
         .filter(function(filterUser) {
           return filterUser.id != user.id;
