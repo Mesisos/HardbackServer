@@ -1236,7 +1236,6 @@ function sendPush(installationQuery, message, data) {
     .then(
       function(installation)
       {
-		//console.log("Installation:" + installation.get('_Id');
         // Check pushType in installationQuery and use the appropriate function!
         var token = installation.get('deviceToken');
         pushToFCM(token, obj);
@@ -1250,10 +1249,8 @@ function notifyUsers(users, message, data) {
       var sessionQuery = new Query(Parse.Session);
       sessionQuery
         .equalTo("user", user);
-      //console.log("SessionID:" + Parse.Session._getId());
       var installationQuery = new Query(Parse.Installation);
-      installationQuery.matchesKeyInQuery("installationId", "installationId", sessionQuery);
-	  console.log("User Stuff" + user.id);
+      installationQuery.matchesKeyInQuery("installationId", "installationId", sessionQuery);//JEFF Somewhere in this code I think it is looking up the wrong InstalltionId. For some users.
       var others = users
         .filter(function(filterUser) {
           return filterUser.id != user.id;
@@ -1268,7 +1265,6 @@ function notifyUsers(users, message, data) {
             prev + " and " + cur
           );
         }, "")
-      //console.log("Installation ID:" + installationQuery.get("installationId"));
       var personalizedData = Object.assign({}, data);
       personalizedData.others = others;
 
