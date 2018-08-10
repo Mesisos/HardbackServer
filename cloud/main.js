@@ -1249,6 +1249,7 @@ function notifyUsers(users, message, data) {
       var sessionQuery = new Query(Parse.Session);
       sessionQuery
         .equalTo("user", user);
+      sessionQuery.descending("createdAt");
       var installationQuery = new Query(Parse.Installation);
       installationQuery.matchesKeyInQuery("installationId", "installationId", sessionQuery);//JEFF Somewhere in this code I think it is looking up the wrong InstalltionId. For some users.
       var others = users
