@@ -1178,7 +1178,7 @@ function getGameInfo(game, playerCount, player) {
 function pushToFCM(recipient, data) {
   return new Parse.Promise(function (resolve, reject) {
     request({
-      uri: 'https://gcm-http.googleapis.com/gcm/send',
+      uri: 'https://fcm.googleapis.com/fcm/send',
       method: 'POST',
       headers: {
         "Authorization": "key=" + (process.env.ANDROID_API_KEY || ""),
