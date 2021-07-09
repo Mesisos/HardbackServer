@@ -192,7 +192,7 @@ if (process.env.TESTING === "true") {
 
   Parse.Cloud.define("purgeRandomGames", function(req, res) {
     if (!req.master) { res.error("unauthorized"); return; }
-
+    res.error("unauthorized"); return;
     var configQuery = new Parse.Query(Parse.Object.extend("Config"));
     configQuery
       .equalTo("isRandom", true);
